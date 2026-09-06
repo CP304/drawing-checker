@@ -101,6 +101,11 @@ class MaterialResult:
     duration_s: float = 0.0
     ocr_used: bool = False
     started_at: float = field(default_factory=time.time)
+    # --- Prüfdokumentation (Pflichtspalten der Ergebnis-Excel) -------------
+    checked_at: str = field(
+        default_factory=lambda: time.strftime("%d.%m.%Y %H:%M"))
+    drawing_rev_date: str = ""          # spätestes Datum auf der Zeichnung
+    processes: list[str] = field(default_factory=list)  # Fertigungsverfahren
 
     @property
     def worst_severity(self) -> Severity | None:

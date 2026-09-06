@@ -1,0 +1,71 @@
+"""Metadaten aus der Zeichnung: letztes Änderungsdatum.
+
+Strategie: Alle Datumsangaben im Textlayer einsammeln (deutsche, ISO- und
+US-Schreibweise) und das SPÄTESTE nehmen – das ist auf Fertigungszeichnungen
+praktisch immer der jüngste Eintrag der Änderungstabelle bzw. das
+Freigabedatum. Fallback: Änderungsdatum aus den PDF-Metadaten.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import logging
+import re
+
+log = logging.getLogger(__name__)
+
+RE_DMY = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})\b")        # 12.01.2026
+RE_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")                # 2026-01-12
+RE_US = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")           # 5/23/2021
+RE_PDF_DATE = re.compile(r"D:(\d{4})(\d{2})(\d{2})")
+
+MIN_YEAR, MAX_YEAR = 1970, 2100
+
+
+def _mk(year: int, month: int, day: int) -> dt.date | None:
+    if year < 100:
+        year += 2000 if year < 70 else 1900
+    if not (MIN_YEAR <= year <= MAX_YEAR):
+        return None
+    try:
+        return dt.date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _candidates(text: str):
+    for d, m, y in RE_DMY.findall(text):
+        date = _mk(int(y), int(m), int(d))
+        if date:
+            yield date
+    for y, m, d in RE_ISO.findall(text):
+        date = _mk(int(y), int(m), int(d))
+        if date:
+            yield date
+    for a, b, y in RE_US.findall(text):
+        a, b = int(a), int(b)
+        # US-Schreibweise ist Monat/Tag; wenn das unmöglich ist, Tag/Monat.
+        date = _mk(int(y), a, b) if a <= 12 else None
+        if date is None and b <= 12:
+            date = _mk(int(y), b, a)
+        if date:
+            yield date
+
+
+def extract_revision_date(pdf) -> str:
+    """Spätestes Datum auf der Zeichnung als ISO-String; '' wenn keins.
+
+    pdf: DrawingPdf. Nutzt den Textlayer; Fallback sind die PDF-Metadaten
+    (ModDate/CreationDate), dann mit Kennzeichnung "(PDF-Metadatum)".
+    """
+    dates = list(_candidates(pdf.full_text()))
+    if dates:
+        return max(dates).isoformat()
+
+    meta = pdf.doc.metadata or {}
+    for key in ("modDate", "creationDate"):
+        m = RE_PDF_DATE.search(meta.get(key) or "")
+        if m:
+            date = _mk(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            if date:
+                return f"{date.isoformat()} (PDF-Metadatum)"
+    return ""

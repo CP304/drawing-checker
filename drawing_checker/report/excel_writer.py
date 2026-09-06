@@ -19,9 +19,13 @@ from ..core.models import JobStatus, MaterialResult, RunConfig, Severity, SEVERI
 log = logging.getLogger(__name__)
 
 RESULT_HEADERS = [
-    "Prüfstatus", "Schwerste Bewertung", "Anzahl Findings",
-    "Findings", "Geometrieabgleich", "Screenshot", "Prüfdauer [s]",
+    "Prüfstatus", "Geprüft am", "Schwerste Bewertung", "Anzahl Findings",
+    "Festgestellte Mängel", "Geometrieabgleich",
+    "Letzte Zeichnungsänderung", "Fertigungsverfahren",
+    "Screenshot", "Prüfdauer [s]",
 ]
+WIDE_HEADERS = {"Festgestellte Mängel", "Geometrieabgleich",
+                "Fertigungsverfahren"}
 FILL = {
     "ok": PatternFill("solid", fgColor="C6EFCE"),
     "warn": PatternFill("solid", fgColor="FFEB9C"),
@@ -46,29 +50,37 @@ class ResultWorkbook:
         if config.sheet_name not in self.wb.sheetnames:
             raise ValueError(f"Blatt {config.sheet_name!r} nicht in {self.path.name}")
         self.ws = self.wb[config.sheet_name]
-        self.first_col = self._ensure_headers()
+        self.cols = self._ensure_headers()
+        self.first_col = self.cols[RESULT_HEADERS[0]]
 
-    def _ensure_headers(self) -> int:
-        """Findet oder erzeugt die Ergebnis-Spalten rechts der Tabelle."""
+    def _ensure_headers(self) -> dict[str, int]:
+        """Findet oder erzeugt die Ergebnis-Spalten rechts der Tabelle.
+
+        Fehlende Spalten (z. B. nach einem Tool-Update mit neuen
+        Dokumentationsspalten) werden rechts angefügt.
+        """
         header_row = self.config.header_row
         existing = {
             (c.value or ""): c.column
             for c in self.ws[header_row]
             if isinstance(c.value, str)
         }
-        if RESULT_HEADERS[0] in existing:
-            return existing[RESULT_HEADERS[0]]
-        first = (self.ws.max_column or 0) + 1
-        for i, name in enumerate(RESULT_HEADERS):
-            cell = self.ws.cell(row=header_row, column=first + i, value=name)
+        cols: dict[str, int] = {}
+        next_col = (self.ws.max_column or 0) + 1
+        for name in RESULT_HEADERS:
+            if name in existing:
+                cols[name] = existing[name]
+                continue
+            cell = self.ws.cell(row=header_row, column=next_col, value=name)
             cell.font = Font(bold=True)
-            self.ws.column_dimensions[get_column_letter(first + i)].width = (
-                46 if name in ("Findings", "Geometrieabgleich") else 18)
-        return first
+            self.ws.column_dimensions[get_column_letter(next_col)].width = (
+                46 if name in WIDE_HEADERS else 18)
+            cols[name] = next_col
+            next_col += 1
+        return cols
 
     def write_result(self, result: MaterialResult) -> None:
         r = result.row
-        c = self.first_col
         worst = result.worst_severity
         findings_txt = "\n".join(
             f"[{SEVERITY_LABEL[f.severity]}] {f.code}: {f.text}"
@@ -79,26 +91,30 @@ class ResultWorkbook:
         if result.status == JobStatus.FAILED and result.error:
             status_txt += f": {result.error}"
 
-        values = [
-            status_txt,
-            SEVERITY_LABEL[worst] if worst is not None else "",
-            len(result.findings),
-            findings_txt,
-            result.step_summary,
-            "",  # Screenshot als Hyperlink, s. u.
-            round(result.duration_s, 1),
-        ]
-        for i, v in enumerate(values):
-            cell = self.ws.cell(row=r, column=c + i, value=v)
+        values = {
+            "Prüfstatus": status_txt,
+            "Geprüft am": result.checked_at,
+            "Schwerste Bewertung":
+                SEVERITY_LABEL[worst] if worst is not None else "",
+            "Anzahl Findings": len(result.findings),
+            "Festgestellte Mängel": findings_txt,
+            "Geometrieabgleich": result.step_summary,
+            "Letzte Zeichnungsänderung": result.drawing_rev_date,
+            "Fertigungsverfahren": ", ".join(result.processes),
+            "Screenshot": "",  # Hyperlink, s. u.
+            "Prüfdauer [s]": round(result.duration_s, 1),
+        }
+        for name, v in values.items():
+            cell = self.ws.cell(row=r, column=self.cols[name], value=v)
             cell.alignment = Alignment(wrap_text=True, vertical="top")
 
         if result.screenshot:
-            cell = self.ws.cell(row=r, column=c + 5)
+            cell = self.ws.cell(row=r, column=self.cols["Screenshot"])
             cell.value = result.screenshot.name
             cell.hyperlink = result.screenshot.resolve().as_uri()
             cell.font = Font(color="0563C1", underline="single")
 
-        status_cell = self.ws.cell(row=r, column=c)
+        status_cell = self.ws.cell(row=r, column=self.cols["Prüfstatus"])
         if result.status == JobStatus.FAILED:
             status_cell.fill = FILL["failed"]
         elif worst is None or worst <= Severity.INFO:

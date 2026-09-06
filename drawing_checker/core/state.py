@@ -115,6 +115,9 @@ class RunState:
                 step_summary=rd.get("step_summary", ""),
                 duration_s=rd.get("duration_s", 0.0),
                 ocr_used=rd.get("ocr_used", False),
+                checked_at=rd.get("checked_at", ""),
+                drawing_rev_date=rd.get("drawing_rev_date", ""),
+                processes=list(rd.get("processes", [])),
             )
             state.results[cls.key(result)] = result
         log.info("Lauf-Zustand geladen: %d Ergebnisse", len(state.results))

@@ -226,6 +226,13 @@ class Orchestrator:
                         "Zeichnung ohne Textlayer – Prüfung basiert auf OCR "
                         "(eingeschränkte Zuverlässigkeit)")
 
+            # Prüfdokumentation: Änderungsdatum + Fertigungsverfahren
+            from ..checks.processes import detect_processes
+            from ..drawing.metadata import extract_revision_date
+
+            result.drawing_rev_date = extract_revision_date(pdf)
+            result.processes = detect_processes(pdf)
+
             dims = []
             if has_text:
                 run_drawing_checks(ctx)
