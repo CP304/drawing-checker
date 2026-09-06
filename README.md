@@ -127,6 +127,13 @@ Wert und Bezüge aus. Die Art der Toleranz bleibt unbekannt – dafür meldet de
 Checker `DOC.GDT_GRAPHIC` als Hinweis auf eine nötige Sichtprüfung, statt
 stillschweigend nichts zu prüfen.
 
+## Regelkatalog
+
+Alle 81 Regeln mit Severity, Prüflogik und Normbezug sind in
+[REGELKATALOG.md](REGELKATALOG.md) dokumentiert – die Grundlage für die
+Abstimmung mit dem Fachbereich. Ein Test stellt sicher, dass neue Regeln
+dort auftauchen.
+
 ## Regelkatalog anpassen
 
 `drawing_checker/rules/profiles.yaml` – Regeln je Materialgruppe
