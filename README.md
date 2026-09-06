@@ -234,6 +234,22 @@ Die Gewichtsangabe wird auf zwei Wegen verifiziert:
 Rohteil-/Bruttogewichte werden erkannt und dem Fertiggewicht nachgeordnet,
 weil das STEP das fertige Teil beschreibt.
 
+## Weitergabe an den Anwenderrechner
+
+Der Zielrechner bekommt **eine einzige Datei**:
+
+```bash
+python -m tools.paket_bauen        # erzeugt dist/DrawingChecker.zip
+```
+
+Das Archiv (rund 0,2 MB, ohne die 25 MB Kalibrierzeichnungen) enthält
+Programm, Wissenspakete, Startskript und Anleitungen und prüft sich beim
+Bauen selbst: entpacken, `--check-rules` im entpackten Stand, Pflichtdateien
+vollständig. Am Zielrechner entpacken – es entsteht der Ordner
+`DrawingChecker` – und darin `Start.bat` doppelklicken; alles Weitere
+(virtuelle Umgebung, Pakete, Menü) macht das Skript. Eine gebaute Fassung
+liegt unter [dist/DrawingChecker.zip](dist/DrawingChecker.zip).
+
 ## Anleitungen
 
 - **[ANLEITUNG.md](ANLEITUNG.md)** – Kurzanleitung für Anwender (zwei Seiten).

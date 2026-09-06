@@ -21,6 +21,7 @@ python -m drawing_checker.app --ocr-check [x.pdf]  # OCR prüfen/vorführen
 python -m tools.ocr_bench mockdata/echt_quellen    # OCR-Güte messen
 python -m tools.langlauf --count 200          # Dauerlauf: Speicher/Platte
 python -m tools.kalibrier_auswertung <ordner> # Fehlalarme vs. Treffer
+python -m tools.paket_bauen                   # dist/DrawingChecker.zip bauen
 QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # GUI headless
 ```
 

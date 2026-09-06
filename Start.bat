@@ -1,16 +1,16 @@
 @echo off
 rem ===================================================================
-rem  Drawing Checker - Start und Einrichtung (Windows)
+rem  Drawing Checker - Einrichtung, Menue und Start (Windows)
 rem
 rem  Doppelklick genuegt. Beim ersten Start wird alles Noetige
-rem  eingerichtet (dauert einige Minuten), danach startet das Programm
-rem  sofort.
+rem  eingerichtet (dauert einige Minuten), danach erscheint ein Menue,
+rem  ueber das sich alles ohne Eingabe von Befehlen erledigen laesst.
 rem
-rem  Aufrufvarianten:
-rem     Start.bat              Programm starten (richtet bei Bedarf ein)
+rem  Aufrufvarianten fuer Geuebte:
+rem     Start.bat              Menue
+rem     Start.bat pruefen      Installation und Regeln pruefen
 rem     Start.bat neu          Umgebung verwerfen und neu aufbauen
-rem     Start.bat pruefen      Selbsttest laufen lassen
-rem     Start.bat --sap-dump   beliebige Programmoptionen durchreichen
+rem     Start.bat --list-rules beliebige Programmoptionen durchreichen
 rem
 rem  Hinweis fuer Entwickler: Diese Datei ist bewusst ohne Umlaute
 rem  geschrieben. Batch-Dateien werden je nach Windows-Einstellung in
@@ -50,6 +50,15 @@ echo  ============================================================
 echo    Drawing Checker - Pruefung technischer Zeichnungen
 echo  ============================================================
 echo.
+
+rem ---------------------------------------------------------------- 0
+rem Aus dem ZIP heraus gestartet? Windows entpackt dann in einen
+rem Temp-Ordner, der spaeter geloescht wird - nichts bliebe erhalten.
+echo %PROJEKT% | find /I "\Temp\" >nul
+if not errorlevel 1 goto :aus_zip
+>"%PROJEKT%schreibtest.tmp" echo x 2>nul
+if not exist "%PROJEKT%schreibtest.tmp" goto :kein_schreibrecht
+del "%PROJEKT%schreibtest.tmp" >nul 2>&1
 
 rem ---------------------------------------------------------------- 1
 if defined REBUILD (
@@ -101,22 +110,24 @@ if not defined INSTALL (
 )
 
 if defined INSTALL (
-    echo  Installiere die Programmbestandteile ...
+    echo  Installiere die Programmbestandteile. Beim ersten Mal werden
+    echo  einige hundert Megabyte geladen - bitte Geduld.
     echo [%DATE% %TIME%] pip install>>"%LOG%"
     "%PYEXE%" -m pip install --upgrade pip setuptools wheel >>"%LOG%" 2>&1
+    echo  ... Grundprogramm
     "%PYEXE%" -m pip install -e "." >>"%LOG%" 2>&1
     if errorlevel 1 goto :fehler_pip
 
     rem Zusatzpakete einzeln: faellt eines aus, laeuft der Rest weiter.
     echo  ... SAP-Anbindung
     "%PYEXE%" -m pip install -e ".[sap]" >>"%LOG%" 2>&1
-    if errorlevel 1 echo  HINWEIS: SAP-Anbindung ^(pywin32^) nicht installiert - nur Mockbetrieb moeglich.
+    if errorlevel 1 echo      HINWEIS: SAP-Anbindung ^(pywin32^) fehlt - nur Mockbetrieb moeglich.
     echo  ... Texterkennung fuer gescannte Zeichnungen
     "%PYEXE%" -m pip install -e ".[ocr]" >>"%LOG%" 2>&1
-    if errorlevel 1 echo  HINWEIS: OCR-Paket nicht installiert - Scans werden nicht gelesen.
+    if errorlevel 1 echo      HINWEIS: OCR-Paket fehlt - Scans werden nicht gelesen.
     echo  ... 3D-Auswertung der STEP-Dateien ^(grosses Paket, dauert^)
     "%PYEXE%" -m pip install -e ".[occ]" >>"%LOG%" 2>&1
-    if errorlevel 1 echo  HINWEIS: 3D-Paket nicht installiert - Geometriepruefung nur eingeschraenkt.
+    if errorlevel 1 echo      HINWEIS: 3D-Paket fehlt - Geometriepruefung nur eingeschraenkt.
 
     "%PYEXE%" -c "import pathlib; pathlib.Path(r'%MARKER%').write_text(str(pathlib.Path(r'%PROJEKT%pyproject.toml').stat().st_mtime_ns))" >nul 2>&1
     echo  Einrichtung abgeschlossen.
@@ -135,42 +146,171 @@ if errorlevel 1 (
 )
 
 rem ---------------------------------------------------------------- 6
-rem Wissenspakete pruefen - fehlerhafte YAML-Eintraege wuerden sonst
-rem stillschweigend ignoriert.
-"%PYEXE%" -m drawing_checker.app --check-rules >>"%LOG%" 2>&1
-if errorlevel 1 (
-    echo  ACHTUNG: In den Regeldateien steckt ein Fehler. Einzelheiten:
-    echo    "%PYEXE%" -m drawing_checker.app --check-rules
-    echo  Der Lauf startet trotzdem, fehlerhafte Eintraege werden ignoriert.
-    echo.
-)
-
-rem ---------------------------------------------------------------- 7
 if defined SELBSTTEST goto :selbsttest
+if defined ARGS goto :durchreichen
+goto :menu
 
+rem ===================================================================
+:menu
+echo.
+echo  ------------------------------------------------------------
+echo    Was moechten Sie tun?
+echo  ------------------------------------------------------------
+echo    1  Zeichnungen pruefen ^(Programm starten^)
+echo    2  SAP-Mitschnitt einlesen  ^(einmalig, .vbs aus SAP^)
+echo    3  Trockenlauf ohne SAP     ^(prueft den eingelesenen Ablauf^)
+echo    4  Eine Materialnummer testweise aus SAP holen
+echo    5  Aktuelles SAP-Bild anzeigen ^(Diagnose bei Problemen^)
+echo    6  Installation und Regeln pruefen
+echo    7  Anleitung oeffnen
+echo    8  Beenden
+echo.
+set "WAHL="
+set /p "WAHL=Nummer eingeben und Enter druecken: "
+if "%WAHL%"=="1" goto :m_start
+if "%WAHL%"=="2" goto :m_vbs
+if "%WAHL%"=="3" goto :m_trocken
+if "%WAHL%"=="4" goto :m_test
+if "%WAHL%"=="5" goto :m_dump
+if "%WAHL%"=="6" goto :selbsttest
+if "%WAHL%"=="7" goto :m_anleitung
+if "%WAHL%"=="8" goto :ende
+echo  Bitte eine Zahl von 1 bis 8 eingeben.
+goto :menu
+
+:m_start
+echo.
+echo  Das Programm wird gestartet. Bitte im Fenster die Excel-Datei
+echo  waehlen und auf die Spalte mit den Materialnummern zeigen.
+echo.
+"%PYEXE%" -m drawing_checker.app
+if errorlevel 1 call :fehlerhinweis
+goto :menu
+
+:m_vbs
+echo.
+echo  Ziehen Sie die .vbs-Datei aus dem Explorer in dieses Fenster
+echo  ^(oder tippen Sie den Pfad^) und druecken Sie Enter.
+echo  Ohne Eingabe geht es zurueck ins Menue.
+set "VBS="
+set /p "VBS=Datei: "
+if not defined VBS goto :menu
+set "VBS=%VBS:"=%"
+if not exist "%VBS%" goto :m_vbs_fehlt
+"%PYEXE%" -m drawing_checker.app --sap-import-vbs "%VBS%"
+echo.
+echo  Bitte oben pruefen: Ist die Materialnummer erkannt und der
+echo  Download-Schritt richtig markiert? Danach Punkt 3 ^(Trockenlauf^).
+pause
+goto :menu
+
+:m_vbs_fehlt
+echo  Diese Datei gibt es nicht: %VBS%
+pause
+goto :menu
+
+:m_trocken
+echo.
+set "MATNR="
+set /p "MATNR=Materialnummer fuer den Trockenlauf (Enter = 4711): "
+if not defined MATNR set "MATNR=4711"
+"%PYEXE%" -m drawing_checker.app --sap-dry-run "%MATNR%"
+pause
+goto :menu
+
+:m_test
+echo.
+set "MATNR="
+set /p "MATNR=Echte Materialnummer aus SAP holen: "
+if not defined MATNR goto :menu
+echo  SAP muss offen und angemeldet sein.
+"%PYEXE%" -m drawing_checker.app --sap-test "%MATNR%"
+pause
+goto :menu
+
+:m_dump
+echo.
+echo  Zeigt den Aufbau des aktuellen SAP-Bildes. Vorher in SAP das
+echo  Bild aufrufen, um das es geht.
+"%PYEXE%" -m drawing_checker.app --sap-dump
+pause
+goto :menu
+
+:m_anleitung
+if exist "%PROJEKT%ANLEITUNG.md" start "" "%PROJEKT%ANLEITUNG.md"
+if not exist "%PROJEKT%ANLEITUNG.md" echo  ANLEITUNG.md wurde nicht gefunden.
+goto :menu
+
+:durchreichen
 echo  Programm wird gestartet ...
 echo.
 "%PYEXE%" -m drawing_checker.app %ARGS%
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" goto :fehler_lauf
-endlocal
-exit /b 0
+goto :ende
 
 rem ===================================================================
 :selbsttest
-echo  Selbsttest laeuft ^(einige Minuten^) ...
+echo.
+echo  Pruefe die Installation ...
+echo.
+"%PYEXE%" -m drawing_checker.app --check-rules
+echo.
+"%PYEXE%" -m drawing_checker.app --ocr-check
+echo.
+"%PYEXE%" -m drawing_checker.app --sap-show-flow
+echo.
+if exist "%PROJEKT%tests" call :vollstaendiger_test
+echo.
+echo  Pruefung beendet.
+pause
+if defined SELBSTTEST goto :ende
+goto :menu
+
+:vollstaendiger_test
+echo  Vollstaendiger Selbsttest dauert einige Minuten.
+set "T="
+set /p "T=Mit Enter starten, sonst eine Taste und Enter zum Ueberspringen: "
+if defined T exit /b 0
 "%PYEXE%" -m pip install -e ".[dev]" >>"%LOG%" 2>&1
 "%PYEXE%" -m pytest tests -q
-echo.
-echo  Selbsttest beendet.
-pause
-endlocal
 exit /b 0
 
 :pruefe_python
 rem Prueft, ob der uebergebene Aufruf ein Python ab 3.11 startet.
 %~1 -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
 exit /b %ERRORLEVEL%
+
+:fehlerhinweis
+echo.
+echo  Das Programm wurde mit einem Fehler beendet.
+echo  Protokolle: Ordner "Ergebnisse" beim jeweiligen Lauf und
+echo  %LOG%
+pause
+exit /b 0
+
+:aus_zip
+echo  Das Programm laeuft gerade AUS DEM ZIP-ARCHIV heraus.
+echo.
+echo  Bitte zuerst entpacken:
+echo    1. Rechtsklick auf die ZIP-Datei
+echo    2. "Alle extrahieren ..." waehlen, Ziel z. B. C:\Tools\DrawingChecker
+echo    3. Im entpackten Ordner erneut auf Start.bat doppelklicken
+echo.
+echo  Aus dem Archiv heraus gehen alle Ergebnisse beim Schliessen verloren.
+pause
+endlocal
+exit /b 1
+
+:kein_schreibrecht
+echo  In diesem Ordner darf nicht geschrieben werden:
+echo    %PROJEKT%
+echo.
+echo  Bitte den Ordner an einen Ort mit Schreibrechten kopieren,
+echo  zum Beispiel C:\Tools\DrawingChecker, und dort erneut starten.
+pause
+endlocal
+exit /b 1
 
 :kein_python
 echo  Es wurde kein Python ab Version 3.11 gefunden.
@@ -219,13 +359,17 @@ exit /b %RC%
 
 :hilfe
 echo.
-echo  Start.bat            Programm starten ^(richtet bei Bedarf ein^)
+echo  Start.bat            Menue ^(richtet bei Bedarf alles ein^)
+echo  Start.bat pruefen    Installation und Regeln pruefen
 echo  Start.bat neu        Umgebung verwerfen und neu aufbauen
-echo  Start.bat pruefen    Selbsttest laufen lassen
 echo  Start.bat ^<optionen^> Optionen an das Programm durchreichen, z. B.
 echo                       Start.bat --sap-import-vbs ymatdocs.vbs
 echo                       Start.bat --ocr-check
 echo                       Start.bat --list-rules
 echo.
+endlocal
+exit /b 0
+
+:ende
 endlocal
 exit /b 0

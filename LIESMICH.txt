@@ -1,0 +1,86 @@
+===========================================================
+ DRAWING CHECKER - Bitte zuerst lesen (2 Minuten)
+===========================================================
+
+SO GEHT ES LOS
+--------------
+1. Diesen Ordner entpacken, falls er noch als ZIP vorliegt.
+   Rechtsklick auf die ZIP-Datei -> "Alle extrahieren ...",
+   Ziel zum Beispiel:  C:\Tools\DrawingChecker
+   WICHTIG: Nicht aus dem ZIP heraus starten - sonst gehen alle
+   Ergebnisse beim Schliessen verloren.
+
+2. Doppelklick auf   Start.bat
+
+   Beim ersten Mal richtet sich das Programm selbst ein. Das dauert
+   je nach Netz 5 bis 15 Minuten. Bitte das schwarze Fenster offen
+   lassen, auch wenn zwischendurch nichts passiert.
+
+3. Danach erscheint ein Menue. Alles Weitere laeuft ueber Zahlen -
+   es muss nichts eingetippt werden ausser der jeweiligen Nummer.
+
+
+DER ERSTE TAG - REIHENFOLGE
+---------------------------
+Zuerst muss dem Programm einmalig beigebracht werden, wie die
+SAP-Transaktion YMATDOCS bedient wird. Das geschieht nicht durch
+Programmieren, sondern durch eine Aufzeichnung aus SAP:
+
+ A) In SAP:  Statusleiste unten rechts -> "Skript aufzeichnen und
+    abspielen" -> Aufzeichnen. Dann die Transaktion EINMAL komplett
+    durchspielen: /nYMATDOCS, Materialnummer eintragen, ausfuehren,
+    ZIP herunterladen, Ordner und Dateiname im Dialog eintragen,
+    speichern, mit F3 zurueck auf das Selektionsbild.
+    Aufzeichnung stoppen. Die .vbs liegt meist unter
+    Dokumente\SAP\SAP GUI\.
+
+    Tipp: Vorher unter SAP Logon -> Optionen -> Barrierefreiheit &
+    Skripting den Haken bei "Hinweis bei Skriptanbindung" ENTFERNEN,
+    sonst kommt bei jeder Materialnummer eine Rueckfrage.
+
+ B) Im Menue von Start.bat:
+      Punkt 2  -> die .vbs-Datei einlesen
+                  (Datei einfach ins Fenster ziehen und Enter)
+      Punkt 3  -> Trockenlauf ohne SAP: prueft, ob der Ablauf sitzt
+      Punkt 4  -> eine echte Materialnummer testweise holen
+      Punkt 1  -> der eigentliche Lauf ueber die Excel-Liste
+
+ C) Wenn Punkt 4 scheitert: Punkt 5 zeigt den Aufbau des aktuellen
+    SAP-Bildes. Damit laesst sich in der Datei
+    regeln\ymatdocs_flow.yaml die passende Element-Nummer eintragen.
+    Ausfuehrlich erklaert in SAP_DURCHSTICH.md.
+
+
+WENN ETWAS KLEMMT
+-----------------
+Das schwarze Fenster bleibt bei Fehlern offen und nennt die Ursache
+im Klartext. Die drei haeufigsten:
+
+ * "Kein Python ab Version 3.11 gefunden"
+   -> Python fehlt. Ueber das Firmen-Softwarecenter anfordern oder
+      von python.org installieren ("Add python.exe to PATH" ankreuzen).
+
+ * "Die Installation ist fehlgeschlagen"
+   -> Meist kein Zugang zum Paketserver (Proxy). Die Datei
+      logs\einrichtung.log enthaelt die genaue Meldung.
+      Fuer die IT: benoetigt wird Zugriff auf pypi.org bzw. den
+      Firmen-Spiegel. Mit gesetztem Proxy geht es so:
+         set HTTPS_PROXY=http://proxy.firma.de:8080
+         Start.bat
+      Gibt es gar keinen Netzzugang, koennen die Pakete auf einem
+      anderen Rechner vorbereitet werden:
+         pip download -d wheels drawing-checker[occ,ocr,sap]
+      Den Ordner "wheels" mitliefern und einmalig aufrufen:
+         .venv\Scripts\python -m pip install --no-index ^
+             --find-links wheels -e .[occ,ocr,sap]
+
+ * "Das Programm laeuft aus dem ZIP-Archiv heraus"
+   -> Erst entpacken (Schritt 1 oben).
+
+Zum Nachlesen:
+  ANLEITUNG.md        Bedienung, 2 Seiten, fuer Anwender
+  SAP_DURCHSTICH.md   SAP-Aufzeichnung und Fehlersuche, ausfuehrlich
+  REGELKATALOG.md     alle 98 Pruefregeln im Klartext
+  KNOWHOW.md          eigene Werkstoffe/Normen ohne Programmierung
+
+===========================================================

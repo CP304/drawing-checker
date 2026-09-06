@@ -43,6 +43,10 @@ ein fehlgeschlagener `--sap-test` schreibt automatisch eine Diagnose.
 
 ## 3. Umgebung einrichten (neuer Rechner)
 
+**Weitergabe:** `python -m tools.paket_bauen` baut `dist/DrawingChecker.zip`
+– eine Datei, die alles enthält und sich beim Bauen selbst prüft. Nach jeder
+Code-Änderung neu bauen, sonst verteilt man den alten Stand.
+
 **Windows-Anwenderrechner:** Doppelklick auf `Start.bat` – richtet alles
 ein und startet. `Start.bat neu` baut die Umgebung neu auf, `Start.bat
 pruefen` lässt die Testsuite laufen. Das Skript ist bewusst ohne Umlaute

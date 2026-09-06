@@ -101,7 +101,11 @@ def test_ohne_argument_wird_nichts_durchgereicht():
     "-m pip install -e \".\"",       # Programm installieren
     '.[occ]', '.[ocr]', '.[sap]',    # Zusatzpakete
     "-m drawing_checker.app --check-rules",
-    "-m drawing_checker.app %ARGS%",  # Start
+    "-m drawing_checker.app %ARGS%",  # Start mit durchgereichten Optionen
+    "-m drawing_checker.app --sap-import-vbs",
+    "-m drawing_checker.app --sap-dry-run",
+    "-m drawing_checker.app --sap-test",
+    "-m drawing_checker.app --sap-dump",
     "-m pytest tests -q",            # Selbsttest
 ])
 def test_wesentliche_schritte_vorhanden(schritt):
@@ -126,3 +130,39 @@ def test_hilfetext_nennt_alle_varianten():
     hilfe = _labelblock("hilfe")
     for variante in ("neu", "pruefen", "--sap-import-vbs"):
         assert variante in hilfe
+
+
+# --------------------------------------------------------------- Menue
+def test_menue_deckt_alle_schritte_von_morgen_ab():
+    """Ohne Argumente muss ein Menue kommen - morgen tippt niemand Befehle."""
+    menue = _labelblock("menu")
+    for eintrag in ("Zeichnungen pruefen", "SAP-Mitschnitt einlesen",
+                    "Trockenlauf ohne SAP", "Materialnummer testweise",
+                    "SAP-Bild anzeigen", "Installation und Regeln pruefen",
+                    "Anleitung oeffnen", "Beenden"):
+        assert eintrag in menue, f"Menuepunkt fehlt: {eintrag}"
+
+
+def test_jede_menuewahl_hat_ein_ziel():
+    menue = _labelblock("menu")
+    ziele = re.findall(r'if "%WAHL%"=="(\d)" goto :(\w+)', menue)
+    assert len(ziele) == 8, f"nicht 8 Menuepunkte verdrahtet: {ziele}"
+    labels = {z.strip().lstrip(":").lower()
+              for z in ZEILEN if z.strip().startswith(":")}
+    for nummer, ziel in ziele:
+        assert ziel.lower() in labels, f"Punkt {nummer} zeigt auf :{ziel}"
+
+
+def test_menue_kehrt_zurueck():
+    """Nach jeder Aktion muss man wieder im Menue landen."""
+    for label in ("m_start", "m_vbs", "m_trocken", "m_test", "m_dump",
+                  "m_anleitung"):
+        block = _labelblock(label)
+        assert "goto :menu" in block, f"{label} kehrt nicht ins Menue zurueck"
+
+
+def test_warnt_beim_start_aus_dem_zip():
+    """Aus dem ZIP heraus gestartet gingen alle Ergebnisse verloren."""
+    assert 'find /I "\\Temp\\"' in TEXT
+    block = _labelblock("aus_zip")
+    assert "entpacken" in block.lower()
