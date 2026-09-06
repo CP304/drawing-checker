@@ -40,6 +40,30 @@ STATUS_TEXT = {
 }
 
 
+# Wie viele Findings in die Zelle geschrieben werden. Eine Zeichnung mit
+# 30 Beanstandungen liest niemand in einer Excel-Zelle; die vollständige
+# Liste steht im Bild und im HTML-Bericht. Der Erläuterungstext (detail)
+# kommt nur bei den schwersten Punkten mit, sonst platzt die Zelle.
+MAX_FINDINGS_IN_CELL = 12
+MAX_DETAILS_IN_CELL = 3
+
+
+def _findings_text(result: MaterialResult) -> str:
+    """Mängelspalte: die schwersten zuerst, gedeckelt und lesbar."""
+    findings = result.sorted_findings()
+    zeilen = []
+    for i, f in enumerate(findings[:MAX_FINDINGS_IN_CELL]):
+        zeile = f"[{SEVERITY_LABEL[f.severity]}] {f.code}: {f.text}"
+        if f.detail and i < MAX_DETAILS_IN_CELL:
+            zeile += f" – {f.detail}"
+        zeilen.append(zeile)
+    rest = len(findings) - MAX_FINDINGS_IN_CELL
+    if rest > 0:
+        zeilen.append(f"… und {rest} weitere Punkte – vollständig im "
+                      f"annotierten Bild und im HTML-Bericht.")
+    return "\n".join(zeilen)
+
+
 class ResultWorkbook:
     def __init__(self, config: RunConfig):
         self.config = config
@@ -82,11 +106,7 @@ class ResultWorkbook:
     def write_result(self, result: MaterialResult) -> None:
         r = result.row
         worst = result.worst_severity
-        findings_txt = "\n".join(
-            f"[{SEVERITY_LABEL[f.severity]}] {f.code}: {f.text}"
-            + (f" – {f.detail}" if f.detail else "")
-            for f in result.sorted_findings()
-        )
+        findings_txt = _findings_text(result)
         status_txt = STATUS_TEXT.get(result.status, result.status.value)
         if result.status == JobStatus.FAILED and result.error:
             status_txt += f": {result.error}"

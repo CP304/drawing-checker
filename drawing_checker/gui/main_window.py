@@ -44,6 +44,34 @@ STATUS_COLOR = {
 }
 
 
+def klartext(exc: Exception) -> str:
+    """Technische Ausnahme in eine Anweisung für Anwender übersetzen.
+
+    Nicht-technische Anwender können mit „PermissionError [Errno 13]"
+    nichts anfangen – wohl aber mit „Die Datei ist noch in Excel geöffnet".
+    """
+    text = str(exc)
+    if isinstance(exc, PermissionError) or "Errno 13" in text:
+        return ("Die Datei ist gesperrt – vermutlich noch in Excel geöffnet. "
+                "Bitte schließen und erneut versuchen.")
+    if isinstance(exc, FileNotFoundError):
+        return ("Die Datei wurde nicht gefunden. Wurde sie verschoben oder "
+                "umbenannt?")
+    if "No space left" in text or "Errno 28" in text:
+        return ("Auf dem Laufwerk ist kein Platz mehr. Bitte Speicherplatz "
+                "freigeben; der Lauf lässt sich danach fortsetzen.")
+    if "pywin32" in text or "win32com" in text:
+        return ("Die SAP-Anbindung fehlt (pywin32). Bitte an die "
+                "Systembetreuung wenden.")
+    if "Scripting" in text or "scripting" in text:
+        return ("SAP GUI Scripting ist nicht freigeschaltet. In SAP Logon "
+                "unter Optionen → Barrierefreiheit & Skripting aktivieren.")
+    if "not a zip file" in text.lower() or "BadZipFile" in text:
+        return ("Das heruntergeladene Paket ist unvollständig. Bitte den "
+                "Lauf für diese Materialnummer wiederholen.")
+    return text
+
+
 class WorkerBridge(QObject):
     """Hebt Orchestrator-Callbacks (Worker-Thread) in den GUI-Thread."""
 
@@ -176,7 +204,8 @@ class MainWindow(QMainWindow):
             wb.close()
         except Exception as exc:
             QMessageBox.warning(self, "Datei nicht lesbar",
-                                f"Die Datei konnte nicht geöffnet werden:\n{exc}")
+                                "Die Datei konnte nicht geöffnet werden:\n"
+                                + klartext(exc))
             return
         self.excel_path = path
         self.lbl_file.setText(f"<b>{path.name}</b>")
@@ -481,7 +510,8 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self, "SAP-Verbindung",
                 "Die Verbindung konnte nicht hergestellt werden:\n"
-                f"{exc}\n\nBitte SAP Logon prüfen und erneut versuchen.")
+                + klartext(exc)
+                + "\n\nBitte SAP Logon prüfen und erneut versuchen.")
             return
 
         self.bridge = WorkerBridge()

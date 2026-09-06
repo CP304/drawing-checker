@@ -217,6 +217,16 @@ Die Gewichtsangabe wird auf zwei Wegen verifiziert:
 Rohteil-/Bruttogewichte werden erkannt und dem Fertiggewicht nachgeordnet,
 weil das STEP das fertige Teil beschreibt.
 
+## Anleitungen
+
+- **[ANLEITUNG.md](ANLEITUNG.md)** – Kurzanleitung für Anwender (zwei Seiten).
+- **[SAP_DURCHSTICH.md](SAP_DURCHSTICH.md)** – Mitschnitt einlesen und
+  Durchstich am Einsatztag.
+- **[UEBERGABE.md](UEBERGABE.md)** – Stand, Umgebung und nächste Schritte
+  für die Weiterarbeit an einem anderen Rechner.
+- **[KNOWHOW.md](KNOWHOW.md)** – Fachwissen ohne Code einpflegen.
+- **[REGELKATALOG.md](REGELKATALOG.md)** – alle 98 Regeln im Klartext.
+
 ## Kalibrierung an echten Zeichnungen
 
 `mockdata/echt_quellen/` enthält **84 echte, frei lizenzierte

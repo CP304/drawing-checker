@@ -184,3 +184,41 @@ def test_spiegelerkennung_meldet_bei_gleicher_hand_nicht():
     gerade = match_views([ansicht], [kontur], mirrored=False)
     gespiegelt = match_views([ansicht], [kontur], mirrored=True)
     assert gerade.score >= gespiegelt.score
+
+
+# --------------------------------------------------------- Anwenderseite
+def test_maengelspalte_wird_gedeckelt():
+    """30 Findings gehören nicht in eine Excel-Zelle."""
+    from drawing_checker.core.models import Finding, JobStatus, MaterialResult
+    from drawing_checker.report.excel_writer import (
+        MAX_FINDINGS_IN_CELL, _findings_text,
+    )
+
+    r = MaterialResult(material="1", row=2, status=JobStatus.FINDINGS)
+    r.findings = [Finding(code=f"X.{i}", severity=Severity.WARNING,
+                          text=f"Punkt {i}", detail="Erläuterung " * 10)
+                  for i in range(30)]
+    text = _findings_text(r)
+    assert text.count("\n") + 1 == MAX_FINDINGS_IN_CELL + 1
+    assert "und 18 weitere" in text
+    assert text.count("Erläuterung") <= 30      # Details nur bei den Ersten
+
+
+def test_maengelspalte_ohne_deckel_bei_wenigen():
+    from drawing_checker.core.models import Finding, JobStatus, MaterialResult
+    from drawing_checker.report.excel_writer import _findings_text
+
+    r = MaterialResult(material="1", row=2, status=JobStatus.FINDINGS)
+    r.findings = [Finding(code="A.B", severity=Severity.ERROR, text="Ein Punkt")]
+    assert _findings_text(r) == "[Fehler] A.B: Ein Punkt"
+
+
+def test_klartext_uebersetzt_technische_fehler():
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from drawing_checker.gui.main_window import klartext
+
+    assert "Excel geöffnet" in klartext(PermissionError(13, "denied"))
+    assert "Speicherplatz" in klartext(OSError("[Errno 28] No space left"))
+    assert klartext(ValueError("etwas Eigenes")) == "etwas Eigenes"
