@@ -144,9 +144,13 @@ class FlowError(Exception):
         self.index = index
 
 
+class Abgebrochen(Exception):
+    """Der Anwender hat den Lauf abgebrochen."""
+
+
 def play(session, flow: ScriptFlow, context: dict[str, str], *,
          wait_ready=None, on_step=None, popup_handler=None,
-         stop_after: int | None = None) -> None:
+         stop_after: int | None = None, abbruch=None) -> None:
     """Spielt den Ablauf auf einer SAP-Session ab.
 
     wait_ready:    Funktion, die auf ein antwortbereites SAP wartet.
@@ -156,10 +160,15 @@ def play(session, flow: ScriptFlow, context: dict[str, str], *,
                    anstehende Schritt wird mitgegeben, damit das Fenster,
                    das dieser Schritt bedient, stehen bleibt.
     stop_after:    Nur die ersten n Schritte ausführen (Schrittbetrieb).
+    abbruch:       Funktion ohne Argumente; liefert sie True, wird vor dem
+                   nächsten Schritt abgebrochen (Knopf in der GUI).
     """
     for index, step in enumerate(flow.steps):
         if stop_after is not None and index >= stop_after:
             return
+        if abbruch is not None and abbruch():
+            raise Abgebrochen(
+                f"Abgebrochen vor Schritt {index + 1} ({step.action})")
         resolved = step.resolve(context)
         if on_step:
             on_step(index, step, resolved)

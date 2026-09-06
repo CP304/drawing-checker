@@ -278,6 +278,27 @@ fehlte, und Allgemeintoleranzen im Freitext („Tolerance unless otherwise
 noted: +/- 0.25mm") galten als nicht vorhanden. Harte Fehlmeldungen auf den
 unveränderten Zeichnungen: **155 → 88**.
 
+## Laufsteuerung: blockweise, abbrechbar, fortsetzbar
+
+Der Lauf über eine ganze Materialgruppe dauert Stunden. Deshalb:
+
+- **Fortlaufende Protokollierung:** Ergebnis-Excel und Lauf-Zustand werden
+  nach *jeder* Materialnummer geschrieben.
+- **Blockweise** (`batch_size`, Standard 25): nach jedem Block Zwischenstand
+  sichern, HTML-Bericht neu schreiben, Speicher zurückgeben und die
+  SAP-Session aufräumen (Dialoge schließen, zurück aufs Selektionsbild).
+- **Abbrechen** wirkt sofort – der Abbruch greift zwischen den
+  Ablaufschritten und im Warten auf den Download, nicht erst nach dessen
+  Zeitablauf. Die angebrochene Materialnummer wird *nicht* als erledigt
+  vermerkt.
+- **Fortsetzen findet sich selbst:** Gesucht wird ein unfertiger Lauf zu
+  *dieser* Datei, diesem Blatt und dieser Spalte – nicht einfach der
+  neueste Ordner. Die GUI bietet es beim Start von selbst an.
+- **SAP-Fenster begrenzt** (`max_sap_sessions`, Standard 5): Der Checker
+  nutzt eine bestehende Session, öffnet höchstens eine eigene, schließt
+  diese am Ende wieder und öffnet keine weitere, wenn die Grenze erreicht
+  ist – er meldet es stattdessen.
+
 ## Dauerlauf
 
 `tools/langlauf.py` prüft, ob das Werkzeug stundenlang durchhält: es baut

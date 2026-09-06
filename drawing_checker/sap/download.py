@@ -64,14 +64,19 @@ class DownloadWatcher:
         for directory in self._all_dirs():
             self._before[directory] = set(_list_files(directory))
 
-    def wait(self) -> Path:
+    def wait(self, abbruch=None) -> Path:
         """Wartet auf die fertige Datei und liefert ihren Pfad.
 
-        Wirft TimeoutError, wenn nichts erscheint.
+        Wirft TimeoutError, wenn nichts erscheint. `abbruch` ist eine
+        Funktion ohne Argumente; liefert sie True, wird das Warten sofort
+        beendet – sonst müsste der Anwender nach dem Abbrechen-Knopf noch
+        bis zu drei Minuten auf den Zeitablauf warten.
         """
         deadline = time.time() + self.timeout_s
         stable_since: dict[Path, tuple[int, float]] = {}
         while time.time() < deadline:
+            if abbruch is not None and abbruch():
+                raise TimeoutError("Download vom Anwender abgebrochen")
             for candidate in self._new_files():
                 size = _size(candidate)
                 if size <= 0:

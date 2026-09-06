@@ -144,16 +144,18 @@ class ResultWorkbook:
         else:
             status_cell.fill = FILL["error"]
 
-    def finalize(self, results: list[MaterialResult]) -> None:
+    def finalize(self, results: list[MaterialResult],
+                 offen: list[tuple[int, str]] | None = None) -> None:
         """Abschluss eines Laufs: Autofilter, Fixierung, Zusammenfassung."""
         header_row = self.config.header_row
         last_col = get_column_letter(max(self.cols.values()))
         last_row = max((r.row for r in results), default=header_row)
         self.ws.auto_filter.ref = f"A{header_row}:{last_col}{last_row}"
         self.ws.freeze_panes = self.ws.cell(row=header_row + 1, column=1)
-        self._write_summary(results)
+        self._write_summary(results, offen or [])
 
-    def _write_summary(self, results: list[MaterialResult]) -> None:
+    def _write_summary(self, results: list[MaterialResult],
+                       offen: list[tuple[int, str]]) -> None:
         from collections import Counter
 
         name = "Prüfzusammenfassung"
@@ -173,6 +175,10 @@ class ResultWorkbook:
             ("OK", n[JobStatus.OK], "", ""),
             ("Mit Findings", n[JobStatus.FINDINGS], "", ""),
             ("Fehlgeschlagen", n[JobStatus.FAILED], "", ""),
+            ("Noch offen", len(offen),
+             "", (f"Lauf angehalten bei Zeile {offen[0][0]} "
+                  f"(Materialnummer {offen[0][1]}). Beim nächsten Start "
+                  f"dort fortsetzen." if offen else "")),
             ("", "", "", ""),
             ("Regel", "Bewertung", "Anzahl", "Beispiel"),
         ]

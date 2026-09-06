@@ -120,6 +120,19 @@ einem Textlayer-Filter nach Zeichnungen durchsuchen (Vorgehen in
 SOURCES.md beschrieben). Nur permissive Lizenzen aufnehmen – keine
 NC-Lizenzen, keine Händler-Katalogblätter.
 
+## 5b. Laufsteuerung (neu)
+
+- `RunConfig.batch_size` (25), `batch_pause_s`, `max_sap_sessions` (5).
+- `Orchestrator._blockwechsel()` sichert je Block und ruft den optionalen
+  Adapter-Haken `blockwechsel()`; `SapGuiAdapter` räumt dort Dialoge weg,
+  springt zurück aufs Selektionsbild und prüft die Fensterzahl.
+- Abbruch: `stop_event` wird an den Adapter gereicht und von dort an
+  `play()` und `DownloadWatcher.wait()`; beide brechen sofort ab
+  (`script_flow.Abgebrochen`). Die laufende Materialnummer wird bewusst
+  NICHT gespeichert, damit sie beim Fortsetzen erneut drankommt.
+- `state.finde_fortsetzbaren_lauf(config)` sucht den passenden Lauf über
+  Datei + Blatt + Spalte statt "neuester Ordner".
+
 ## 6. Messwerkzeuge
 
 | Werkzeug | Frage, die es beantwortet |

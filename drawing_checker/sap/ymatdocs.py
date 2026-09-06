@@ -26,7 +26,7 @@ from pathlib import Path
 from .adapter import MaterialNotFound, SapUnavailable
 from .download import DownloadWatcher, default_watch_dirs
 from .popups import handle_popups
-from .script_flow import FlowError, ScriptFlow, Step, play
+from .script_flow import Abgebrochen, FlowError, ScriptFlow, Step, play
 from .session import find_element, wait_ready
 
 log = logging.getLogger(__name__)
@@ -89,8 +89,15 @@ def run_ymatdocs(session, material: str, target_dir: Path, *,
                  flow_path: Path | None = None,
                  watch_dirs: list[Path] | None = None,
                  on_step=None,
-                 timeout_s: float = DOWNLOAD_TIMEOUT_S) -> Path:
-    """Führt YMATDOCS für eine Materialnummer aus, liefert den ZIP-Pfad."""
+                 timeout_s: float = DOWNLOAD_TIMEOUT_S,
+                 abbruch=None) -> Path:
+    """Führt YMATDOCS für eine Materialnummer aus, liefert den ZIP-Pfad.
+
+    abbruch: Funktion ohne Argumente; liefert sie True, wird der Ablauf
+    beim nächsten Schritt bzw. beim Warten auf den Download abgebrochen.
+    Damit wirkt der Abbrechen-Knopf der GUI sofort und nicht erst nach
+    dem Zeitablauf des Downloads.
+    """
     target_dir.mkdir(parents=True, exist_ok=True)
     flow, source = load_flow(flow_path)
     if source is None:
@@ -117,7 +124,8 @@ def run_ymatdocs(session, material: str, target_dir: Path, *,
         play(session, flow, context,
              wait_ready=lambda s: wait_ready(s, timeout=120),
              on_step=on_step,
-             popup_handler=_popup_handler)
+             popup_handler=_popup_handler,
+             abbruch=abbruch)
     except FlowError as exc:
         _raise_flow_error(session, material, exc, source)
 
@@ -127,8 +135,10 @@ def run_ymatdocs(session, material: str, target_dir: Path, *,
     _raise_on_error_status(session, context=f"Ausführung für {material}")
 
     try:
-        downloaded = watcher.wait()
+        downloaded = watcher.wait(abbruch=abbruch)
     except TimeoutError as exc:
+        if abbruch is not None and abbruch():
+            raise Abgebrochen(f"{material}: vom Anwender abgebrochen") from exc
         if status:
             raise MaterialNotFound(f"{material}: kein Paket ({status})") from exc
         raise SapUnavailable(str(exc)) from exc

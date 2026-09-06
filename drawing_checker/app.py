@@ -24,7 +24,8 @@ def build_adapter(config: RunConfig) -> SapAdapter:
 
     return SapGuiAdapter(connection_name=config.sap_connection,
                          flow_path=config.sap_flow,
-                         diagnose_dir=config.output_dir / "sap_diagnose")
+                         diagnose_dir=config.output_dir / "sap_diagnose",
+                         max_sessions=config.max_sap_sessions)
 
 
 def main() -> int:

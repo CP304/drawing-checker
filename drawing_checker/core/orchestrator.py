@@ -24,22 +24,29 @@ from ..drawing.pdfdoc import DrawingPdf
 from ..report.annotate import annotate
 from ..report.excel_writer import ResultWorkbook, read_materials
 from ..sap.adapter import MaterialNotFound, SapAdapter, SapUnavailable
+from ..sap.script_flow import Abgebrochen as _SapAbgebrochen
 from . import package as pkg
 from .housekeeping import (
     DiskFull, DiskGuard, cleanup_package, free_mb, release_memory,
 )
 from .models import JobStatus, MaterialResult, RunConfig, Severity
-from .state import RunState
+from .state import RunState, finde_fortsetzbaren_lauf
 
 log = logging.getLogger(__name__)
 
 MAX_JOB_RETRIES = 2   # technische Retries je Materialnummer (nach SAP-Recovery)
 
 
+class _Abgebrochen(Exception):
+    """Der Anwender hat abgebrochen – die laufende Nummer bleibt offen."""
+
+
 @dataclass
 class Progress:
     total: int = 0
     done: int = 0
+    batch: int = 0          # laufender Block (1-basiert)
+    batches: int = 0        # Anzahl Blöcke insgesamt
     current: str = ""
     ok: int = 0
     findings: int = 0
@@ -82,12 +89,16 @@ class Orchestrator:
         self._freed_mb = 0.0
 
     def _resolve_run_dir(self, resume: bool) -> Path:
+        """Ordner des Laufs: fortsetzen nur, wenn er zur Auswahl passt."""
         base = self.config.output_dir
         if resume:
-            runs = sorted((p for p in base.glob("lauf_*") if p.is_dir()),
-                          reverse=True)
-            if runs:
-                return runs[0]
+            treffer = finde_fortsetzbaren_lauf(self.config)
+            if treffer:
+                ordner, fertig, _gesamt = treffer
+                log.info("Setze Lauf %s fort (%d bereits geprüft)",
+                         ordner.name, fertig)
+                return ordner
+            log.info("Kein passender Lauf zum Fortsetzen gefunden – neuer Lauf")
         return base / time.strftime("lauf_%Y%m%d_%H%M%S")
 
     # ------------------------------------------------------------- Steuerung
@@ -130,6 +141,13 @@ class Orchestrator:
             self.cb.on_finished(self.progress)
 
     def _run_inner(self) -> None:
+        # Der Adapter darf wissen, wann abgebrochen wurde: dann bricht auch
+        # ein laufender SAP-Schritt oder das Warten auf den Download ab,
+        # statt bis zum Zeitablauf weiterzulaufen.
+        try:
+            self.adapter.stop_event = self.stop_event
+        except Exception:
+            pass
         materials = read_materials(self.config)
         workbook = ResultWorkbook(self.config)
         self.progress.total = len(materials)
@@ -151,7 +169,17 @@ class Orchestrator:
                       f"{len(todo)} offen")
 
         self._log(f"Freier Speicherplatz: {free_mb(self.run_dir):.0f} MB")
+        offen: list[tuple[int, str]] = list(todo)
+        # Blockweise abarbeiten: nach jedem Block wird gesichert, aufgeräumt
+        # und ein Zwischenbericht geschrieben. Bei einem Abbruch (Absturz,
+        # Feierabend, SAP-Wartung) ist damit höchstens der laufende Block
+        # betroffen, alles davor ist fertig dokumentiert.
+        groesse = self.config.batch_size or len(todo) or 1
+        self.progress.batches = max((len(todo) + groesse - 1) // groesse, 0)
         for row, material in todo:
+            self.progress.batch = min(
+                self.progress.done // groesse + 1, self.progress.batches) \
+                if self.progress.batches else 0
             if self.stop_event.is_set():
                 self._log("Lauf vom Anwender abgebrochen")
                 break
@@ -169,9 +197,18 @@ class Orchestrator:
 
             self.progress.current = material
             self.cb.on_progress(self.progress)
-            result = self._process_with_retries(row, material)
+            try:
+                result = self._process_with_retries(row, material)
+            except _Abgebrochen:
+                # Abbruch mitten in der Materialnummer: NICHT als Ergebnis
+                # festhalten, sonst gilt sie beim Fortsetzen als erledigt.
+                self._log(f"Abgebrochen bei {material} – diese Nummer wird "
+                          f"beim Fortsetzen erneut geprüft")
+                break
 
             self.state.record(result)
+            if (row, material) in offen:
+                offen.remove((row, material))
             workbook.write_result(result)
             workbook.save()
             self._count(result)
@@ -186,10 +223,13 @@ class Orchestrator:
             self.cb.on_result(result)
             self.cb.on_progress(self.progress)
 
+            if self.config.batch_size and not self.progress.done % groesse:
+                self._blockwechsel(workbook)
+
         # Abschluss: Zusammenfassung in Excel + HTML-Bericht
         all_results = list(self.state.results.values())
         try:
-            workbook.finalize(all_results)
+            workbook.finalize(all_results, offen)
             workbook.save()
         except Exception:
             log.exception("Excel-Zusammenfassung fehlgeschlagen")
@@ -207,6 +247,11 @@ class Orchestrator:
         except Exception:
             log.exception("HTML-Bericht fehlgeschlagen")
 
+        try:
+            self.adapter.close()
+        except Exception:
+            log.debug("Adapter ließ sich nicht sauber schließen", exc_info=True)
+
         self.progress.current = ""
         self.progress.message = (
             f"Fertig: {self.progress.ok} ok, {self.progress.findings} mit "
@@ -217,11 +262,54 @@ class Orchestrator:
                       f"{free_mb(self.run_dir):.0f} MB frei")
         self._log(self.progress.message)
 
+    def _blockwechsel(self, workbook) -> None:
+        """Zwischenstand nach einem Block sichern und aufräumen.
+
+        Gesichert wird ohnehin nach jeder Materialnummer; hier kommen die
+        teureren Dinge dazu, die man nicht jedes Mal machen will:
+        Zwischenbericht, Speicher zurückgeben, SAP-Session aufräumen.
+        """
+        nummer, gesamt = self.progress.batch, self.progress.batches
+        self._log(f"Block {nummer} von {gesamt} abgeschlossen "
+                  f"({self.progress.done}/{self.progress.total} geprüft)")
+        try:
+            workbook.save()
+        except Exception:
+            log.exception("Zwischenspeichern der Excel fehlgeschlagen")
+        try:
+            self._write_zwischenbericht()
+        except Exception:
+            log.debug("Zwischenbericht fehlgeschlagen", exc_info=True)
+        # SAP zurück auf einen sauberen Stand bringen (Dialoge schließen,
+        # Fensterzahl prüfen) - dafür gibt es einen optionalen Haken am
+        # Adapter; der Mock-Adapter kennt ihn nicht.
+        haken = getattr(self.adapter, "blockwechsel", None)
+        if callable(haken):
+            try:
+                haken()
+            except Exception:
+                log.warning("SAP-Aufräumen zwischen den Blöcken "
+                            "fehlgeschlagen", exc_info=True)
+        release_memory()
+        if self.config.batch_pause_s:
+            time.sleep(self.config.batch_pause_s)
+
+    def _write_zwischenbericht(self) -> None:
+        from ..report.html_report import write_html_report
+
+        self.report_path = write_html_report(
+            self.config, list(self.state.results.values()), self.run_dir,
+            self.profile.name, duration_s=time.time() - self.state.started)
+
     def _process_with_retries(self, row: int, material: str) -> MaterialResult:
         last_error = ""
         for attempt in range(1, MAX_JOB_RETRIES + 2):
+            if self.stop_event.is_set():
+                raise _Abgebrochen()
             try:
                 return self._process_one(row, material)
+            except (_Abgebrochen, _SapAbgebrochen):
+                raise _Abgebrochen()
             except SapUnavailable as exc:
                 last_error = str(exc)
                 self._log(f"{material}: SAP nicht verfügbar ({exc}) – "
@@ -236,6 +324,8 @@ class Orchestrator:
                 result.findings.append(_finding_no_package(str(exc)))
                 return result
             except Exception as exc:
+                if self.stop_event.is_set():
+                    raise _Abgebrochen() from exc
                 log.error("Unerwarteter Fehler bei %s:\n%s", material,
                           traceback.format_exc())
                 last_error = f"{type(exc).__name__}: {exc}"

@@ -20,6 +20,7 @@ from PySide6.QtCore import QObject, QSettings, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QHeaderView,
+    QSpinBox,
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
     QProgressBar, QPushButton, QSplitter, QStackedWidget, QTabWidget,
     QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -164,6 +165,17 @@ class MainWindow(QMainWindow):
         self.txt_system = QLineEdit("P11")
         self.txt_system.setFixedWidth(70)
         opts.addWidget(self.txt_system)
+        opts.addSpacing(20)
+        opts.addWidget(QLabel("Blockgröße:"))
+        self.spn_batch = QSpinBox()
+        self.spn_batch.setRange(0, 500)
+        self.spn_batch.setValue(25)
+        self.spn_batch.setFixedWidth(70)
+        self.spn_batch.setToolTip(
+            "Nach je so vielen Materialnummern wird ein Zwischenstand "
+            "gesichert (Excel, Bericht) und SAP aufgeräumt.\n"
+            "0 = alles am Stück.")
+        opts.addWidget(self.spn_batch)
         opts.addSpacing(12)
         btn_test = QPushButton("Verbindung testen")
         btn_test.clicked.connect(self._test_connection)
@@ -367,6 +379,7 @@ class MainWindow(QMainWindow):
             material_group=self.cmb_profile.currentText(),
             sap_connection=self.txt_system.text().strip() or "P11",
             mock_source=mock,
+            batch_size=self.spn_batch.value(),
         )
 
     # ================================================= Schritt 3: Lauf
@@ -499,9 +512,9 @@ class MainWindow(QMainWindow):
         self._start_run(resume=True)
 
     def _start_run(self, resume: bool | None = None):
-        if resume is None:
-            resume = self.chk_resume.isChecked()
         cfg = self._make_config()
+        if resume is None:
+            resume = self._frage_fortsetzen(cfg)
         self._save_settings(cfg)
         try:
             self.adapter = self.make_adapter(cfg)
@@ -537,6 +550,30 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(2)
         self.orchestrator.start()
 
+    def _frage_fortsetzen(self, cfg) -> bool:
+        """Bietet von selbst an, einen unfertigen Lauf fortzusetzen.
+
+        Niemand soll nach einem Abbruch stundenlang schon Geprüftes noch
+        einmal prüfen, nur weil ein Haken nicht gesetzt war. Gesucht wird
+        ein Lauf zu DIESER Datei, diesem Blatt und dieser Spalte.
+        """
+        from ..core.state import finde_fortsetzbaren_lauf
+
+        if self.chk_resume.isChecked():
+            return True
+        treffer = finde_fortsetzbaren_lauf(cfg)
+        if treffer is None:
+            return False
+        ordner, fertig, _gesamt = treffer
+        antwort = QMessageBox.question(
+            self, "Früheren Lauf fortsetzen?",
+            f"Zu dieser Liste gibt es einen unfertigen Lauf vom "
+            f"{ordner.name.removeprefix('lauf_')[:8]}:\n"
+            f"{fertig} Materialnummern sind bereits geprüft.\n\n"
+            f"Dort fortsetzen? (Nein = alles noch einmal prüfen)",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        return antwort == QMessageBox.Yes
+
     def _toggle_pause(self):
         if self.orchestrator is None:
             return
@@ -552,14 +589,21 @@ class MainWindow(QMainWindow):
             return
         if QMessageBox.question(
                 self, "Abbrechen",
-                "Prüfung wirklich abbrechen? Bereits geprüfte Ergebnisse "
-                "bleiben erhalten und der Lauf kann später fortgesetzt werden."
+                "Prüfung wirklich abbrechen?\n\n"
+                "Bereits geprüfte Zeilen stehen schon in der Ergebnis-Excel "
+                "und bleiben erhalten. Beim nächsten Start bietet das "
+                "Programm von selbst an, genau hier weiterzumachen."
         ) == QMessageBox.Yes:
+            self.btn_stop.setEnabled(False)
+            self.btn_stop.setText("Wird abgebrochen ...")
             self.orchestrator.stop()
 
     def _on_progress(self, p: Progress):
         self.progress_bar.setMaximum(max(p.total, 1))
         self.progress_bar.setValue(p.done)
+        if p.batches > 1:
+            self.progress_bar.setFormat(
+                f"%v von %m  ·  Block {p.batch} von {p.batches}")
         cur = f"Aktuell: {p.current}" if p.current else ""
         eta = ""
         if p.eta_s is not None and p.eta_s > 5:
@@ -589,14 +633,25 @@ class MainWindow(QMainWindow):
     def _on_finished(self, p: Progress):
         self.btn_pause.setEnabled(False)
         self.btn_stop.setEnabled(False)
+        self.btn_stop.setText("Abbrechen")
         self.btn_open.setEnabled(True)
         self.btn_new.setEnabled(True)
         self.btn_retry.setEnabled(p.failed > 0)
         self.btn_report.setEnabled(
             bool(self.orchestrator and self.orchestrator.report_path))
         self.lbl_current.setText(p.message or "Fertig.")
-        QMessageBox.information(self, "Prüfung abgeschlossen",
-                                p.message or "Die Prüfung ist abgeschlossen.")
+        offen = max(p.total - p.done, 0)
+        if offen:
+            QMessageBox.information(
+                self, "Prüfung angehalten",
+                f"{p.message}\n\n{offen} Materialnummern sind noch offen. "
+                f"Die geprüften Zeilen stehen in der Ergebnis-Excel. Beim "
+                f"nächsten Start bietet das Programm an, genau hier "
+                f"weiterzumachen.")
+        else:
+            QMessageBox.information(
+                self, "Prüfung abgeschlossen",
+                p.message or "Die Prüfung ist abgeschlossen.")
 
     def _open_results(self):
         target = self.run_dir or (self.excel_path and self.excel_path.parent)

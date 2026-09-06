@@ -32,6 +32,23 @@ Ihnen, wo Sie hinsehen müssen.
    Ergebnis-Excel liegt neben Ihrer Ausgangsdatei mit dem Zusatz
    `_geprüft`.
 
+## Während des Laufs
+
+- **Die Ergebnis-Excel wächst mit.** Nach jeder Materialnummer steht die
+  Zeile auf der Platte. Auch wenn der Rechner ausgeht, ist alles bis dahin
+  gesichert.
+- **Blockweise:** Nach je 25 Materialnummern (einstellbar) sichert das
+  Programm einen Zwischenstand, schreibt den Bericht neu und räumt SAP auf.
+  Der Fortschrittsbalken zeigt „Block 3 von 12".
+- **Pause** hält den Lauf an, ohne etwas zu verlieren; **Abbrechen** beendet
+  ihn sauber – auch mitten in einem Download.
+- **Beim nächsten Start** fragt das Programm von selbst: „Zu dieser Liste
+  gibt es einen unfertigen Lauf, 240 Nummern sind geprüft – dort
+  fortsetzen?" Ein Klick auf Ja, und es geht genau dort weiter.
+- **SAP:** Das Programm nutzt Ihre bestehende Anmeldung und öffnet
+  höchstens ein eigenes Fenster – nie mehr als fünf insgesamt. Sind schon
+  fünf offen, meldet es das, statt Ihnen das letzte Fenster wegzunehmen.
+
 ## Was Sie zurückbekommen
 
 Je Materialnummer eine Zeile mit:

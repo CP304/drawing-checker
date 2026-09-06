@@ -132,3 +132,9 @@ class RunConfig:
     # anhalten, bevor die Platte voll ist.
     keep_packages: bool = False     # True = Pakete zur Fehlersuche behalten
     min_free_mb: int = 500          # Sicherheitsreserve auf dem Laufwerk
+    # Blockweise Abarbeitung: nach je `batch_size` Materialnummern wird ein
+    # Zwischenstand gesichert (Excel, Zustand, Bericht), der Speicher
+    # freigegeben und die SAP-Session aufgeräumt. 0 = alles am Stück.
+    batch_size: int = 25
+    batch_pause_s: float = 0.0      # optionale Atempause zwischen Blöcken
+    max_sap_sessions: int = 5       # Obergrenze offener SAP-Fenster

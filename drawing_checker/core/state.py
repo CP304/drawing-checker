@@ -21,6 +21,36 @@ log = logging.getLogger(__name__)
 STATE_NAME = "lauf_zustand.json"
 
 
+def finde_fortsetzbaren_lauf(config: RunConfig) -> tuple[Path, int, int] | None:
+    """Sucht einen unfertigen Lauf, der zu DIESER Excel-Auswahl gehört.
+
+    Früher wurde beim Fortsetzen einfach der neueste Lauf-Ordner genommen –
+    das konnte den Lauf einer ganz anderen Materialgruppe fortsetzen.
+    Verglichen werden deshalb Datei, Blatt und Spalte.
+
+    Rückgabe: (Ordner, bereits geprüft, insgesamt bekannt) oder None.
+    """
+    basis = config.output_dir
+    if not basis.is_dir():
+        return None
+    for ordner in sorted((p for p in basis.glob("lauf_*") if p.is_dir()),
+                         reverse=True):
+        try:
+            data = json.loads((ordner / STATE_NAME).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        cfg = data.get("config", {})
+        if (Path(cfg.get("excel_path", "")) != config.excel_path
+                or cfg.get("sheet_name") != config.sheet_name
+                or cfg.get("material_column") != config.material_column):
+            continue
+        fertig = sum(1 for r in data.get("results", [])
+                     if r.get("status") in ("ok", "findings", "skipped"))
+        if fertig:
+            return (ordner, fertig, len(data.get("results", [])))
+    return None
+
+
 class RunState:
     def __init__(self, config: RunConfig, run_dir: Path):
         self.config = config
