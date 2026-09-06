@@ -43,6 +43,9 @@ class Material:
     hardenable: set[str] = field(default_factory=set)
     zinc: bool = False
     anodize: bool = False
+    # Eloxier-Eignung von Alu-Legierungen: "" (gut) | "bedingt" | "schlecht".
+    # Praxisfall: falsche Legierung fürs Eloxieren gewählt (Si-/Cu-haltig).
+    anodize_quality: str = ""
     castable: bool = False
     note: str = ""
 
@@ -63,6 +66,7 @@ def _load_materials() -> list[Material]:
                     hardenable=set(e.get("hardenable", [])),
                     zinc=bool(e.get("zinc", False)),
                     anodize=bool(e.get("anodize", False)),
+                    anodize_quality=str(e.get("anodize_quality", "") or ""),
                     castable=bool(e.get("castable", False)),
                     note=e.get("note", ""),
                 ))
@@ -122,6 +126,31 @@ RE_ZINC = re.compile(
     r"feuerverzink|verzink|zinc[-\s]?(?:plated|coated)|galvani[sz]ed"
     r"|hot[-\s]?dip|zn\s*\d+\b|ISO\s*1461|ISO\s*2081", re.IGNORECASE)
 RE_ANODIZE = re.compile(r"eloxier|anodi[sz]|anodisiert", re.IGNORECASE)
+RE_ANODIZE_DECOR = re.compile(
+    r"eloxier|anodi[sz](?:ed|ation|ing)?\s*(?:type\s*ii\b|farb|schwarz|black"
+    r"|natur|clear|dekorativ|decorative)?", re.IGNORECASE)
+RE_STUD_WELD = re.compile(
+    r"schwei[ßs]bolzen|bolzenschwei[ßs]|stud\s*weld(?:ing|s|ed)?"
+    r"|weld(?:ing|ed)?\s*studs?|ISO\s*13918|ISO\s*14555", re.IGNORECASE)
+# Reihenfolge-Hinweise, die den Konflikt Schweißen/Verzinken auflösen.
+RE_ZINC_SEQUENCE = re.compile(
+    r"vor\s+dem\s+(?:feuer)?verzinken|nach\s+dem\s+schwei[ßs]en.{0,30}?verzink"
+    r"|erst\s+schwei[ßs]en|geschwei[ßs]t\s*,?\s*(?:dann|danach).{0,20}?verzink"
+    r"|weld(?:ed)?\s+(?:before|prior\s+to)\s+galvaniz|galvanized?\s+after\s+weld",
+    re.IGNORECASE)
+RE_BLACKEN = re.compile(r"brüniert?|black\s*oxid[ei]|schwarzoxid", re.IGNORECASE)
+# Passungen (40H7, ⌀22 h6, js9 …) und metrische Gewinde – für den
+# Schichtdicken-Check bei Verzinken/Eloxieren.
+RE_FIT_TOKEN = re.compile(
+    r"[⌀Øø]?\s*\d{1,3}\s*(?:H|h|G|g|F|f|K|k|M(?=\d)|m(?=\d)|N|n|P|p|R|r|S|s"
+    r"|JS|js)\d{1,2}\b")
+RE_METRIC_THREAD = re.compile(r"\bM\s*\d{1,3}(?:\s*[xX×]\s*\d+(?:[.,]\d+)?)?\b")
+RE_COAT_EXCLUDE = re.compile(
+    r"freihalten|freigehalten|abdecken|abgedeckt|abkleben|maskier"
+    r"|nachschneiden|nacharbeiten|nachreiben|nach\s+dem\s+(?:verzinken"
+    r"|eloxieren|beschichten)|masked?|plugged|after\s+(?:coating|galvanizing"
+    r"|anodizing)|re-?tap", re.IGNORECASE)
+RE_FILLER_309 = re.compile(r"\b309L?\b|\b1\.4332\b|ER\s*309", re.IGNORECASE)
 RE_ISO5817 = re.compile(r"ISO\s*5817", re.IGNORECASE)
 RE_ISO10042 = re.compile(r"ISO\s*10042", re.IGNORECASE)
 RE_CAST = re.compile(r"\bguss|gussteil|casting|\bcast\b|rohteil|formschräge"
@@ -228,6 +257,98 @@ def check_material_conflicts(ctx: CheckContext, hits: list[MaterialHit]) -> None
                     f"Widerspruch: Eloxieren („{snippet}“) ist nur für "
                     f"Aluminium möglich, Werkstoff ist {primary.name}",
                     bbox=bbox, page=page)
+        blacken = _find_context(ctx, RE_BLACKEN)
+        if blacken and primary.category not in (
+                "baustahl", "verguetung", "einsatz", "automaten", "stahlguss",
+                "guss"):
+            snippet, bbox, page = blacken
+            ctx.add("MAT.COATING_CONFLICT",
+                    f"Widerspruch: Brünieren („{snippet}“) funktioniert nur "
+                    f"auf Stahl/Eisenwerkstoffen, Werkstoff ist {primary.name}",
+                    bbox=bbox, page=page)
+
+    # --- Eloxier-Eignung der Alu-Legierung (Praxisfall: falsche Legierung) --
+    if ctx.profile.enabled("MAT.ANODIZE_ALLOY") and primary.category == "alu":
+        anod = _find_context(ctx, RE_ANODIZE)
+        if anod and primary.anodize_quality in ("schlecht", "bedingt"):
+            snippet, bbox, page = anod
+            if primary.anodize_quality == "schlecht":
+                ctx.add("MAT.ANODIZE_ALLOY",
+                        f"Legierung {primary.name} ist zum Eloxieren ungeeignet "
+                        f"(„{snippet}“)",
+                        bbox=bbox, page=page, detail=primary.note)
+            else:
+                ctx.add("MAT.ANODIZE_ALLOY",
+                        f"Legierung {primary.name} nur bedingt eloxierbar – "
+                        f"Anforderung an die Eloxalschicht klären",
+                        severity=ctx.profile.severity("MAT.ANODIZE_LIMITED"),
+                        bbox=bbox, page=page, detail=primary.note)
+
+    # --- Schweißbolzen / Reihenfolge Schweißen–Verzinken --------------------
+    zinc_ctx = _find_context(ctx, RE_ZINC)
+    stud = _find_context(ctx, RE_STUD_WELD)
+    if ctx.profile.enabled("PROC.STUD_ON_ZINC") and stud and zinc_ctx:
+        snippet, bbox, page = stud
+        ctx.add("PROC.STUD_ON_ZINC",
+                f"Bolzenschweißen („{snippet}“) auf feuerverzinktem Teil – "
+                f"Zinkschicht verhindert prozesssichere Bolzenschweißung",
+                bbox=bbox, page=page,
+                detail="Bolzen vor dem Verzinken schweißen oder Schweißfläche "
+                       "beim Verzinken abdecken – Reihenfolge auf der Zeichnung "
+                       "eindeutig vorgeben.")
+    elif (ctx.profile.enabled("PROC.WELD_ZINC_ORDER") and zinc_ctx
+          and _find_context(ctx, RE_WELD)
+          and not _find_context(ctx, RE_ZINC_SEQUENCE)):
+        snippet, bbox, page = zinc_ctx
+        ctx.add("PROC.WELD_ZINC_ORDER",
+                "Schweißen und Verzinken auf derselben Zeichnung, aber keine "
+                "Reihenfolge angegeben",
+                bbox=bbox, page=page,
+                detail="Üblich: erst schweißen, dann feuerverzinken. Ohne "
+                       "Angabe drohen Schweißen auf Zinkschicht (Poren, "
+                       "Zinkdämpfe) oder unverzinkte Nahtzonen.")
+
+    # --- Schichtdicke vs. Passung/Gewinde (Verzinken/Eloxieren) -------------
+    if ctx.profile.enabled("COAT.FIT"):
+        coating = zinc_ctx or _find_context(ctx, RE_ANODIZE)
+        if coating and not _find_context(ctx, RE_COAT_EXCLUDE):
+            fit = _find_context(ctx, RE_FIT_TOKEN)
+            thread = _find_context(ctx, RE_METRIC_THREAD)
+            target = fit or thread
+            if target:
+                what = "Passung" if fit else "Gewinde"
+                snippet, bbox, page = target
+                ctx.add("COAT.FIT",
+                        f"Beschichtung ({coating[0]}) und {what} "
+                        f"(„{snippet}“) ohne Freihalte-/Nacharbeitsvermerk",
+                        bbox=bbox, page=page,
+                        detail="Zink-/Eloxalschicht verändert das Maß "
+                               "(Feuerverzinkung 50–150 µm). Passflächen/"
+                               "Gewinde freihalten, abdecken oder Nacharbeit "
+                               "(nachschneiden/reiben) vorgeben.")
+
+    # --- Mischverbindungen beim Schweißen -----------------------------------
+    if weld:
+        cats = {m.category for m in all_mats}
+        steel_cats = cats & {"baustahl", "verguetung", "einsatz", "automaten",
+                             "stahlguss"}
+        snippet, bbox, page = weld
+        if ctx.profile.enabled("WELD.MIXED") and "alu" in cats and steel_cats:
+            ctx.add("WELD.MIXED",
+                    "Widerspruch: Aluminium und Stahl auf einer "
+                    "Schweißzeichnung – schmelzschweißen ist nicht möglich",
+                    bbox=bbox, page=page,
+                    detail="Mischverbindung Al/Fe nur über Sonderverfahren "
+                           "(Reib-/Explosionsschweißen) oder mechanisch fügen.")
+        elif (ctx.profile.enabled("WELD.MIXED_FILLER")
+              and steel_cats and cats & {"nirosta", "nirosta_auto"}
+              and not _find_context(ctx, RE_FILLER_309)):
+            ctx.add("WELD.MIXED_FILLER",
+                    "Schwarz-Weiß-Verbindung (Edelstahl + un-/niedriglegierter "
+                    "Stahl) ohne Zusatzwerkstoff-Angabe",
+                    bbox=bbox, page=page,
+                    detail="Für Mischverbindungen Zusatzwerkstoff vorgeben "
+                           "(üblich 309L / 1.4332), sonst Aufmischungsrisse.")
 
     # --- Guss --------------------------------------------------------------
     if ctx.profile.enabled("MAT.CAST_CONFLICT"):

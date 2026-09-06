@@ -58,7 +58,21 @@ RE_SURF_TEXT = re.compile(
     r"|\d+\s*µ?in\b|microinch|\bRMS\b)", re.IGNORECASE)
 # GD&T-Symbole (Unicode) – Positions-/Form-/Lauf-Toleranzen.
 GDT_POSITIONAL = "⌖◎⌯∥⊥∠↗⌰"      # brauchen einen Bezug
-GDT_ANY = GDT_POSITIONAL + "⏤⏥○⌭⌒"
+GDT_FORM = "⏤⏥○⌭⌒"               # Formtoleranzen: dürfen KEINEN Bezug haben
+GDT_ANY = GDT_POSITIONAL + GDT_FORM
+# Widersprüchliche GD&T: Formtoleranz (Ebenheit/Geradheit/Rundheit/…)
+# mit Bezugsbuchstaben dahinter.
+RE_FORM_WITH_DATUM = re.compile(
+    rf"[{GDT_FORM}]\s*⌀?\s*\d+(?:[.,]\d+)?\s+[A-Z](?:[-|][A-Z])?\b")
+# In ASME Y14.5-2018 gestrichene, messtechnisch problematische Symbole.
+RE_DEPRECATED_GDT = re.compile(r"[◎⌯]")
+# Stückliste / Positionsballone
+RE_BOM_HEADER = re.compile(
+    r"stückliste|parts?\s*list|bill\s+of\s+materials?"
+    r"|\b(?:pos\.?|item)\b.{0,60}?\b(?:qty|quantity|stück|menge|anzahl)\b"
+    r"|\b(?:qty|quantity)\b.{0,60}?\b(?:pos\.?|item)\b",
+    re.IGNORECASE | re.DOTALL)
+RE_BALLOON_NUM = re.compile(r"^\d{1,2}$")
 RE_DATUM = re.compile(r"^[A-Z]$|^\[?[A-Z](?:[-|][A-Z])?\]?$")
 
 WELD_CONTEXT = re.compile(r"schwei|weld|\bwps\b|naht|fillet|seam|a\d+\s*[▲△]?",
@@ -150,6 +164,69 @@ def check_gps_datums(ctx: CheckContext) -> None:
                 detail=f"Gefundene Symbole: {' '.join(used_positional)}")
 
 
+def check_gdt_contradictions(ctx: CheckContext) -> None:
+    """Widersprüchliche bzw. problematische GD&T-Angaben."""
+    if ctx.profile.enabled("GPS.FORM_WITH_DATUM"):
+        hit = _find(ctx, RE_FORM_WITH_DATUM)
+        if hit:
+            m, bbox, page = hit
+            ctx.add("GPS.FORM_WITH_DATUM",
+                    f"Widersprüchliche GD&T: Formtoleranz mit Bezug angegeben "
+                    f"(„{m.group(0)}“)",
+                    bbox=bbox, page=page,
+                    detail="Form (Ebenheit/Geradheit/Rundheit/Zylindrizität) "
+                           "ist bezugsunabhängig definiert (ISO 1101) – Bezug "
+                           "streichen oder Lage-/Lauftoleranz verwenden.")
+    if ctx.profile.enabled("GPS.DEPRECATED_SYMBOL"):
+        hit = _find(ctx, RE_DEPRECATED_GDT)
+        if hit:
+            m, bbox, page = hit
+            name = ("Koaxialität/Konzentrizität" if m.group(0) == "◎"
+                    else "Symmetrie")
+            ctx.add("GPS.DEPRECATED_SYMBOL",
+                    f"GD&T-Symbol {m.group(0)} ({name}) verwendet – in "
+                    f"ASME Y14.5-2018 gestrichen und messtechnisch problematisch",
+                    bbox=bbox, page=page,
+                    detail="Für internationale Lieferanten Position bzw. "
+                           "Lauf bevorzugen (eindeutig messbar).")
+
+
+# ------------------------------------------------------ Positionsballone
+def check_balloons(ctx: CheckContext) -> None:
+    """Stückliste vorhanden, aber keine Positionsballone in der Darstellung.
+
+    Heuristik: Positionsnummern (1, 2, …) müssen als freistehende kurze
+    Zahlen AUSSERHALB des Stücklisten-Bereichs auftauchen. Konservativ als
+    "Prüfen" gemeldet – Ballon-Grafiken selbst sind nicht auswertbar.
+    """
+    if not ctx.profile.enabled("DOC.BALLOONS"):
+        return
+    bom_blocks = [b for b in ctx.pdf.blocks() if RE_BOM_HEADER.search(b.text)]
+    if not bom_blocks:
+        return
+    # Ausschlusszone: x-Spannweite der Stücklisten-Blöcke (Tabellenspalten
+    # liegen darüber/darunter in derselben Spur).
+    x_ranges = [(b.bbox.x0 - 10, b.bbox.x1 + 10) for b in bom_blocks]
+    pages = {b.page for b in bom_blocks}
+
+    def in_bom_column(w) -> bool:
+        cx = (w.bbox.x0 + w.bbox.x1) / 2
+        return w.page in pages and any(x0 <= cx <= x1 for x0, x1 in x_ranges)
+
+    outside = {w.text.strip() for w in ctx.pdf.words()
+               if RE_BALLOON_NUM.match(w.text.strip()) and not in_bom_column(w)}
+    missing = [n for n in ("1", "2") if n not in outside]
+    if missing:
+        b = bom_blocks[0]
+        ctx.add("DOC.BALLOONS",
+                "Stückliste vorhanden, aber Positionsballone in der "
+                "Darstellung nicht erkennbar",
+                bbox=b.bbox, page=b.page,
+                detail=f"Positionsnummer(n) {', '.join(missing)} wurden "
+                       "außerhalb der Stückliste nicht gefunden – ohne Ballone "
+                       "ist die Zuordnung Teil ↔ Position nicht eindeutig.")
+
+
 # ------------------------------------------------------------ Oberflächen
 def check_surfaces(ctx: CheckContext) -> None:
     if ctx.profile.enabled("SURF.ROUGHNESS"):
@@ -182,12 +259,42 @@ def check_view(ctx: CheckContext) -> None:
 
 
 # ------------------------------------------- Kontext: Schweißen und Guss
+RE_ISO13920 = re.compile(r"ISO\s*13920", re.IGNORECASE)
+# Gewinde fälschlich mit Passungs-Toleranzklasse ("M12 H7" statt 6H/6g).
+RE_THREAD_WITH_FIT = re.compile(
+    r"\bM\s*\d{1,3}(?:\s*[xX×]\s*\d+(?:[.,]\d+)?)?\s+[HhGgFf]\d{1,2}\b")
+
+
+def check_thread_fit_class(ctx: CheckContext) -> None:
+    if not ctx.profile.enabled("THRD.FIT_CLASS"):
+        return
+    hit = _find(ctx, RE_THREAD_WITH_FIT)
+    if hit:
+        m, bbox, page = hit
+        ctx.add("THRD.FIT_CLASS",
+                f"Gewinde mit Passungs-Toleranzklasse bemaßt („{m.group(0)}“)",
+                bbox=bbox, page=page,
+                detail="Gewindetoleranzen heißen 6H/6g (ISO 965), "
+                       "Bohrungs-/Wellenpassungen H7/h6 gelten nicht für "
+                       "Gewinde – Angabe korrigieren.")
+
+
 def check_welding(ctx: CheckContext) -> None:
     if not ctx.profile.enabled("WELD.QUALITY"):
         return
     hit = _find(ctx, WELD_CONTEXT)
     if not hit:
         return
+    # Schweißkonstruktion: ISO 2768 allein reicht nicht – Allgemeintoleranzen
+    # für Schweißkonstruktionen sind ISO 13920.
+    if (ctx.profile.enabled("NORM.WELD_GENTOL")
+            and _find(ctx, RE_ISO2768) and not _find(ctx, RE_ISO13920)):
+        ctx.add("NORM.WELD_GENTOL",
+                "Schweißkonstruktion nur mit ISO 2768 – Allgemeintoleranzen "
+                "für Schweißkonstruktionen (ISO 13920) fehlen",
+                detail="ISO 2768 gilt für spanende Fertigung; für Längen-/"
+                       "Winkelmaße und Form/Lage geschweißter Baugruppen "
+                       "ISO 13920 (z. B. -BF) ergänzen.")
     q = _find(ctx, RE_ISO5817)
     if not q:
         _m, bbox, page = hit
@@ -237,6 +344,9 @@ ALL_CHECKS = [
     check_title_block,
     check_general_tolerances,
     check_gps_datums,
+    check_gdt_contradictions,
+    check_balloons,
+    check_thread_fit_class,
     check_surfaces,
     check_view,
     check_welding,

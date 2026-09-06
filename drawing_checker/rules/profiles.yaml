@@ -33,6 +33,8 @@ profiles:
       GT.GENERAL_TOL: {enabled: true, severity: error}    # ISO 2768 / ISO 22081
       GT.PRINCIPLE:   {enabled: true, severity: warning}  # ISO 8015 / Tolerierungsgrundsatz
       GPS.DATUM:      {enabled: true, severity: error}    # Lagetoleranz ohne Bezug
+      GPS.FORM_WITH_DATUM:   {enabled: true, severity: error}   # Formtoleranz MIT Bezug (Widerspruch)
+      GPS.DEPRECATED_SYMBOL: {enabled: true, severity: warning} # ◎/⌯ (ASME 2018 gestrichen)
       # --- Oberflächen und Kanten ---------------------------------------------
       SURF.ROUGHNESS: {enabled: true, severity: warning}  # Ra/Rz bzw. ISO 21920/1302
       SURF.EDGES:     {enabled: true, severity: warning}  # ISO 13715
@@ -52,8 +54,18 @@ profiles:
       MAT.HT_CONFLICT:      {enabled: true, severity: error}   # Wärmebehandlung passt nicht zum Werkstoff
       MAT.COATING_CONFLICT: {enabled: true, severity: error}   # Verzinken/Eloxieren fachlich unsinnig
       MAT.CAST_CONFLICT:    {enabled: true, severity: warning} # Gusskontext ohne Gusswerkstoff
+      MAT.ANODIZE_ALLOY:    {enabled: true, severity: error}   # Legierung zum Eloxieren ungeeignet
+      MAT.ANODIZE_LIMITED:  {enabled: true, severity: warning} # nur bedingt eloxierbar
+      PROC.STUD_ON_ZINC:    {enabled: true, severity: error}   # Schweißbolzen auf verzinktem Teil
+      PROC.WELD_ZINC_ORDER: {enabled: true, severity: warning} # Reihenfolge Schweißen/Verzinken fehlt
+      COAT.FIT:             {enabled: true, severity: warning} # Beschichtung + Passung/Gewinde ohne Freihaltevermerk
+      WELD.MIXED:           {enabled: true, severity: error}   # Alu + Stahl geschweißt
+      WELD.MIXED_FILLER:    {enabled: true, severity: warning} # Schwarz-Weiß ohne 309L-Angabe
+      NORM.WELD_GENTOL:     {enabled: true, severity: warning} # Schweißteil nur mit ISO 2768 (13920 fehlt)
+      THRD.FIT_CLASS:       {enabled: true, severity: error}   # "M12 H7" statt 6H/6g
       NORM.MATERIAL_MISMATCH: {enabled: true, severity: error} # z. B. ISO 5817 bei Aluminium
       NORM.OBSOLETE:        {enabled: true, severity: warning} # zurückgezogene/ersetzte Norm
+      DOC.BALLOONS:         {enabled: true, severity: warning} # Stückliste ohne Positionsballone
       # --- Konsistenz ----------------------------------------------------------
       CONS.MATNO:   {enabled: true, severity: warning}    # Materialnummer auf Zeichnung
       # --- Paket / Geometrie ---------------------------------------------------

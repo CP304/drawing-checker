@@ -118,7 +118,8 @@ materials:
   - {name: GS (Stahlguss), patterns: ['\bGS[-\s]?\d{2}\b', 'G20Mn5', '1\.6220', 'GE\s*240'],
      category: stahlguss, weldable: ja, castable: true, hardenable: [qt]}
   - {name: EN AC-AlSi10Mg/AlSi12, patterns: ['EN\s*AC[-\s]?4\d{4}', 'AlSi10Mg', 'AlSi12(?:Cu)?', 'AlSi9Cu3'],
-     category: alu, weldable: bedingt, castable: true}
+     category: alu, weldable: bedingt, castable: true, anodize_quality: schlecht,
+     note: 'Si-haltige Gusslegierung: Eloxalschicht wird grau/fleckig, dekoratives Eloxieren ungeeignet'}
   # =================== Aluminium-Knetlegierungen ==========================
   - {name: EN AW-5083 (AlMg4,5Mn), patterns: ['EN\s*AW[-\s]?5083', 'AlMg4[.,]5Mn', '3\.3547'],
      category: alu, weldable: ja, anodize: true}
@@ -134,11 +135,11 @@ materials:
      category: alu, weldable: ja, anodize: true}
   - {name: EN AW-7075, patterns: ['EN\s*AW[-\s]?7075', 'AlZn5[,.]5MgCu', '3\.4365',
                                   '\b7075[-\s]?T\d{1,2}\b', 'ALUMIN\w*\s*7075'],
-     category: alu, weldable: nein, anodize: true,
-     note: '7075: schmelzschweißen nicht zulässig (Heißrissneigung)'}
+     category: alu, weldable: nein, anodize: true, anodize_quality: bedingt,
+     note: '7075: schmelzschweißen nicht zulässig (Heißrissneigung); Eloxal nur technisch, dekorativ eingeschränkt'}
   - {name: EN AW-2007/2024, patterns: ['EN\s*AW[-\s]?20(?:07|24)', 'AlCu4\w*', '3\.1645'],
-     category: alu, weldable: nein, anodize: true,
-     note: 'AlCu-Legierungen: nicht schmelzschweißgeeignet'}
+     category: alu, weldable: nein, anodize: true, anodize_quality: schlecht,
+     note: 'AlCu-Legierungen: nicht schmelzschweißgeeignet; Cu-Anteil ergibt schlechte, fleckige Eloxalschicht – für Eloxalteile 5xxx/6xxx wählen'}
   # ============================ Magnesium =================================
   - {name: AZ91 (Mg-Druckguss), patterns: ['\bAZ91\w?\b', '\bAZ31\b', '3\.5[12]\d{2}'],
      category: magnesium, weldable: bedingt, castable: true,
