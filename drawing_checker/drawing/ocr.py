@@ -56,6 +56,12 @@ class OcrSettings:
     rotation_conf_bonus: int = 10
     rotation_min_aspect: float = 1.2
     binarize: bool = True           # DRAWING_CHECKER_OCR_BINARIZE=0
+    # Zeichnungs-, Maß- und Rahmenlinien vor der Erkennung tilgen. Standard
+    # aus: Am Messsatz (saubere Vorlagen) bringt es nichts. Bei echten
+    # Archivscans, deren Linien in die Schrift verlaufen, lohnt der Versuch:
+    # DRAWING_CHECKER_OCR_LINES=1
+    remove_lines: bool = False      # DRAWING_CHECKER_OCR_LINES=1
+    line_min_frac: float = 0.06     # Mindestlänge, Anteil der Bildbreite
     deskew: bool = True             # DRAWING_CHECKER_OCR_DESKEW=0
     max_skew_deg: float = 3.0
     fix_tokens: bool = True         # DRAWING_CHECKER_OCR_FIX=0
@@ -72,6 +78,7 @@ class OcrSettings:
         if raw is not None:
             s.rotations = tuple(int(x) for x in re.findall(r"-?\d+", raw))
         s.binarize = _env_bool("BINARIZE", s.binarize)
+        s.remove_lines = _env_bool("LINES", s.remove_lines)
         s.deskew = _env_bool("DESKEW", s.deskew)
         s.fix_tokens = _env_bool("FIX", s.fix_tokens)
         s.extra_config = os.environ.get("DRAWING_CHECKER_OCR_CONFIG",
@@ -168,7 +175,58 @@ def _render(page, cfg: OcrSettings, Image):
     img = Image.frombytes("L", (pix.width, pix.height), pix.samples)
     if cfg.binarize:
         img = _binarize(img, Image)
+    if cfg.remove_lines:
+        img = _remove_lines(img, cfg, Image)
     return img
+
+
+def _remove_lines(img, cfg: OcrSettings, Image):
+    """Lange Linien (Rahmen, Maß-, Körperkanten) vor der Erkennung tilgen.
+
+    Auf Zeichnungen berühren Maßlinien und Kanten die Schrift; Tesseract
+    liest sie als Zeichen mit oder verwirft ganze Wörter. Erkannt werden
+    Linien über eine Erosion in Laufrichtung: Nur Pixel, die in einer
+    langen ununterbrochenen Kette liegen, überleben – Buchstabenstriche
+    sind zu kurz dafür. Anschließend werden die Linien weiß gesetzt.
+    """
+    import numpy as np
+
+    arr = np.asarray(img)
+    dark = arr < 128
+    if not dark.any():
+        return img
+    length_h = max(int(arr.shape[1] * cfg.line_min_frac), 20)
+    length_v = max(int(arr.shape[0] * cfg.line_min_frac), 20)
+    lines = _runs(dark, length_h, axis=1) | _runs(dark, length_v, axis=0)
+    if not lines.any():
+        return img
+    cleaned = np.where(lines, 255, arr).astype("uint8")
+    return Image.fromarray(cleaned)
+
+
+def _runs(mask, length: int, axis: int):
+    """Maske der Pixel, die in einer Kette von `length` Pixeln liegen.
+
+    Erosion und Dilatation in Laufrichtung, verdoppelnd – damit sind es
+    log(length) statt length Schritte.
+    """
+    import numpy as np
+
+    eroded = mask
+    done, step = 1, 1
+    while done < length:
+        step = min(step, length - done)
+        eroded = eroded & np.roll(eroded, -step, axis=axis)
+        done += step
+        step = max(step * 2, 1)
+    grown = eroded
+    done, step = 1, 1
+    while done < length:
+        step = min(step, length - done)
+        grown = grown | np.roll(grown, step, axis=axis)
+        done += step
+        step = max(step * 2, 1)
+    return grown & mask
 
 
 def _binarize(img, Image):

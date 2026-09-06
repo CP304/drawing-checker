@@ -169,7 +169,22 @@ läuft alles Übrige weiter; gescannte Zeichnungen melden dann `DOC.NO_TEXT`.
 
 Stellschrauben ohne Codeänderung (Umgebungsvariablen):
 `DRAWING_CHECKER_OCR_DPI`, `_MIN_CONF`, `_PSM`, `_ROTATIONS`, `_LANG`,
-`_BINARIZE=0`, `_DESKEW=0`, `_FIX=0`, `_DIM_CONF`, `_SHORT_CONF`.
+`_BINARIZE=0`, `_DESKEW=0`, `_FIX=0`, `_LINES=1`, `_DIM_CONF`, `_SHORT_CONF`.
+
+Was die Abstimmung ergeben hat (jeweils am Messsatz gegengeprüft, nicht
+geschätzt):
+
+* **400 dpi** ist der beste Kompromiss – 300 dpi verliert Wörter, 600 dpi
+  bringt keine besseren Maße und kostet ein Vielfaches an Rechenzeit.
+* Der **90°-Durchgang** bringt die gedrehten Maßtexte, erzeugt aber ohne
+  den Hochkant-Filter mehr erfundene als echte Maße. Mit Filter bleibt der
+  Gewinn und die Fehlerquote sinkt (39 → 17 erfundene Maße).
+* **Linienentfernung** (`_LINES=1`) bringt am sauberen Messsatz nichts und
+  ist deshalb aus. Bei echten Archivscans, deren Maßlinien in die Schrift
+  laufen, ist sie den Versuch wert – der Schalter ist dafür da.
+* **`deu+eng`** bleibt Standard. Nur Englisch liefert an diesen (englischen)
+  Zeichnungen weniger Fehlfunde; bei deutschen Zeichnungen ist das genau
+  umgekehrt. Wer einen reinsprachigen Bestand hat, setzt `_LANG`.
 
 Die Güte ist messbar: `python -m tools.ocr_bench mockdata/echt_quellen`
 rastert echte Zeichnungen (deren Textlayer die Wahrheit liefert) und misst,

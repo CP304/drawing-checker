@@ -260,3 +260,23 @@ def test_ohne_ocr_bleibt_die_severity(tmp_path):
                        load_profile("default"))
     ctx.add("TB.MATERIAL", "Werkstoff nicht nachweisbar")
     assert ctx.findings[0].severity == Severity.ERROR
+
+
+# ------------------------------------------------------ Linienentfernung
+def test_linienentfernung_tilgt_linie_und_laesst_schrift():
+    """Lange Linien verschwinden, kurze Buchstabenstriche bleiben."""
+    import numpy as np
+    from PIL import Image
+
+    arr = np.full((200, 400), 255, dtype="uint8")
+    arr[100, 20:380] = 0            # Maßlinie quer über das Blatt
+    arr[50:60, 100:106] = 0         # Buchstabenstrich
+    out = np.asarray(ocrmod._remove_lines(Image.fromarray(arr),
+                                          OcrSettings(), Image))
+    assert (out[100, 20:380] == 255).all()
+    assert (out[50:60, 100:106] == 0).all()
+
+
+def test_linienentfernung_ist_abschaltbar(monkeypatch):
+    monkeypatch.setenv("DRAWING_CHECKER_OCR_LINES", "1")
+    assert OcrSettings.from_env().remove_lines is True
