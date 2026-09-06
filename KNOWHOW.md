@@ -6,6 +6,25 @@ Jede Datei `materials*.yaml` und `norms*.yaml` in dem Ordner wird automatisch
 mitgeladen; Firmenpakete (z. B. `norms_firma.yaml`, `materials_firma.yaml`)
 liegen neben den mitgelieferten und überstehen Updates des Tools.
 
+## Manuell nachpflegen – so geht's
+
+1. **Wo?** Beim installierten Tool (.exe) einen Ordner **`regeln/` neben die
+   Anwendung** legen (alternativ beliebiger Ordner über die Umgebungsvariable
+   `DRAWING_CHECKER_RULES`). Alles dort Abgelegte lädt zusätzlich zu den
+   mitgelieferten Paketen; gleichnamige Profile/Regeln überschreiben die
+   Mitgelieferten. Die mitgelieferten Dateien selbst nie anfassen – so
+   überleben eigene Einträge jedes Tool-Update.
+2. **Was?** Einfach eine Textdatei anlegen, z. B. `regeln/materials_firma.yaml`,
+   `regeln/norms_firma.yaml` oder `regeln/profiles_firma.yaml` – Format wie in
+   den mitgelieferten Dateien (dort sind alle Felder kommentiert; ein Eintrag
+   ist eine Zeile, Editor genügt, kein Python nötig).
+3. **Prüfen:** `drawing-checker --check-rules` validiert alle Pakete und
+   meldet Probleme in Klartext mit Datei und Eintrag (leeres/falsches Feld,
+   Regex-Tippfehler, unbekannte Kategorie/Severity, doppelte Namen). Die GUI
+   macht dieselbe Prüfung beim Start und zeigt Funde als Warnung.
+4. **Sicherheitsnetz:** Ein fehlerhafter Eintrag bricht nie den Prüflauf ab –
+   er wird ignoriert und geloggt, der Rest des Pakets lädt normal.
+
 ## Die drei Wissensspeicher
 
 | Datei | Inhalt | Wer pflegt |

@@ -20,7 +20,7 @@ from pathlib import Path
 
 import yaml
 
-from .base import RULES_DIR, CheckContext
+from .base import RULES_DIR, CheckContext, rules_files
 
 log = logging.getLogger(__name__)
 
@@ -50,12 +50,15 @@ class Material:
 def _load_materials() -> list[Material]:
     """Lädt alle materials*.yaml aus dem rules-Ordner (Wissenspakete)."""
     out: list[Material] = []
-    for f in sorted(RULES_DIR.glob("materials*.yaml")):
+    for f in rules_files("materials*.yaml"):
         data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
         for e in data.get("materials", []):
             try:
+                patterns = [str(p) for p in e["patterns"]]
+                for pat in patterns:
+                    re.compile(pat)  # Tippfehler sofort erkennen
                 out.append(Material(
-                    name=e["name"], patterns=list(e["patterns"]),
+                    name=e["name"], patterns=patterns,
                     category=e["category"], weldable=e.get("weldable", "ja"),
                     hardenable=set(e.get("hardenable", [])),
                     zinc=bool(e.get("zinc", False)),
@@ -64,12 +67,10 @@ def _load_materials() -> list[Material]:
                     note=e.get("note", ""),
                 ))
             except (KeyError, TypeError, re.error) as exc:
+                # Fehlerhafte Einträge überspringen statt Lauf abbrechen –
+                # `drawing-checker --check-rules` zeigt sie dem Pfleger an.
                 log.error("Werkstoffeintrag in %s fehlerhaft (%s): %r",
                           f.name, exc, e)
-        # Regex-Validierung sofort, damit Tippfehler beim Start auffallen.
-    for m in out:
-        for pat in m.patterns:
-            re.compile(pat)
     return out
 
 
@@ -264,7 +265,7 @@ def check_material_conflicts(ctx: CheckContext, hits: list[MaterialHit]) -> None
 def _load_obsolete_norms() -> list[tuple[re.Pattern, str]]:
     """Lädt alle norms*.yaml aus dem rules-Ordner (Wissenspakete)."""
     out: list[tuple[re.Pattern, str]] = []
-    for f in sorted(RULES_DIR.glob("norms*.yaml")):
+    for f in rules_files("norms*.yaml"):
         data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
         for e in data.get("obsolete", []):
             try:

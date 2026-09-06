@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,6 +15,41 @@ from ..drawing.pdfdoc import DrawingPdf
 log = logging.getLogger(__name__)
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "rules"
+
+
+def rules_dirs() -> list[Path]:
+    """Alle Regelordner in Ladereihenfolge (spätere überschreiben frühere).
+
+    1. Mitgelieferte Pakete im Programm (RULES_DIR).
+    2. Ordner aus der Umgebungsvariablen DRAWING_CHECKER_RULES.
+    3. Ordner `regeln/` neben der ausführbaren Datei (PyInstaller-.exe)
+       bzw. im Arbeitsverzeichnis – dort pflegen Anwender ihre YAMLs
+       manuell nach, ohne das Programm anzufassen.
+    """
+    import sys
+
+    dirs = [RULES_DIR]
+    env = os.environ.get("DRAWING_CHECKER_RULES")
+    if env:
+        dirs.append(Path(env))
+    if getattr(sys, "frozen", False):
+        dirs.append(Path(sys.executable).resolve().parent / "regeln")
+    dirs.append(Path.cwd() / "regeln")
+    seen: set[Path] = set()
+    out = []
+    for d in dirs:
+        if d.is_dir() and d not in seen:
+            seen.add(d)
+            out.append(d)
+    return out
+
+
+def rules_files(pattern: str) -> list[Path]:
+    """Alle Wissenspaket-Dateien zu einem Muster über alle Regelordner."""
+    files: list[Path] = []
+    for d in rules_dirs():
+        files.extend(sorted(d.glob(pattern)))
+    return files
 
 SEVERITY_BY_NAME = {
     "info": Severity.INFO,
@@ -43,11 +79,30 @@ class RuleProfile:
         return self.rules.get(code, {}).get(key, default)
 
 
+def load_profiles_data(rules_file: Path | None = None) -> dict:
+    """Sammelt alle profiles*.yaml über alle Regelordner (deep-merged).
+
+    Externe Ordner (regeln/ neben der .exe, DRAWING_CHECKER_RULES) können
+    damit einzelne Regeln/Severities überschreiben oder eigene Profile
+    ergänzen, ohne die mitgelieferte Datei anzufassen.
+    """
+    if rules_file is not None:
+        data = yaml.safe_load(rules_file.read_text(encoding="utf-8")) or {}
+        return data.get("profiles", {})
+    merged: dict = {}
+    for f in rules_files("profiles*.yaml"):
+        try:
+            data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError as exc:
+            log.error("Profildatei %s nicht lesbar: %s", f, exc)
+            continue
+        merged = _deep_merge(merged, data.get("profiles", {}))
+    return merged
+
+
 def load_profile(material_group: str, rules_file: Path | None = None) -> RuleProfile:
-    """Lädt ein Profil inkl. `inherit`-Auflösung aus rules/profiles.yaml."""
-    path = rules_file or (RULES_DIR / "profiles.yaml")
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    profiles = data.get("profiles", {})
+    """Lädt ein Profil inkl. `inherit`-Auflösung aus den profiles*.yaml."""
+    profiles = load_profiles_data(rules_file)
     if material_group not in profiles:
         log.warning("Profil %r unbekannt, nutze 'default'", material_group)
         material_group = "default"

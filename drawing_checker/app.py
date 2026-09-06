@@ -38,7 +38,16 @@ def main() -> int:
     parser.add_argument("--profile", default="default")
     parser.add_argument("--system", default="P11")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--check-rules", action="store_true",
+                        help="Wissenspakete (YAML) validieren und beenden")
     args = parser.parse_args()
+
+    if args.check_rules:
+        from .checks.rules_check import format_report, validate_rules
+
+        issues, stats = validate_rules()
+        print(format_report(issues, stats))
+        return 1 if issues else 0
 
     if args.headless:
         return run_headless(args)
@@ -55,6 +64,22 @@ def run_gui(args) -> int:
     app.setApplicationName("Drawing Checker")
     win = MainWindow(build_adapter, list_profiles(), mock_default=args.mock)
     win.show()
+
+    # Handgepflegte Wissenspakete beim Start prüfen: Probleme als Warnung
+    # anzeigen (fehlerhafte Einträge werden im Lauf ignoriert, nicht fatal).
+    from .checks.rules_check import validate_rules
+
+    issues, _stats = validate_rules()
+    if issues:
+        from PySide6.QtWidgets import QMessageBox
+
+        text = "\n".join(f"• {i}" for i in issues[:15])
+        if len(issues) > 15:
+            text += f"\n… und {len(issues) - 15} weitere"
+        QMessageBox.warning(
+            win, "Regeldateien prüfen",
+            "In den Wissenspaketen (YAML) wurden Probleme gefunden. Die "
+            "betroffenen Einträge werden ignoriert:\n\n" + text)
     return app.exec()
 
 

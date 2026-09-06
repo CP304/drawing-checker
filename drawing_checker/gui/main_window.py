@@ -414,11 +414,8 @@ class MainWindow(QMainWindow):
 
 
 def list_profiles() -> list[str]:
-    import yaml
+    from ..checks.base import load_profiles_data
 
-    from ..checks.base import RULES_DIR
-
-    data = yaml.safe_load((RULES_DIR / "profiles.yaml").read_text("utf-8"))
-    names = list(data.get("profiles", {}))
+    names = list(load_profiles_data())
     names.sort(key=lambda n: (n != "default", n))
     return names
