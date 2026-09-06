@@ -124,6 +124,52 @@ class ResultWorkbook:
         else:
             status_cell.fill = FILL["error"]
 
+    def finalize(self, results: list[MaterialResult]) -> None:
+        """Abschluss eines Laufs: Autofilter, Fixierung, Zusammenfassung."""
+        header_row = self.config.header_row
+        last_col = get_column_letter(max(self.cols.values()))
+        last_row = max((r.row for r in results), default=header_row)
+        self.ws.auto_filter.ref = f"A{header_row}:{last_col}{last_row}"
+        self.ws.freeze_panes = self.ws.cell(row=header_row + 1, column=1)
+        self._write_summary(results)
+
+    def _write_summary(self, results: list[MaterialResult]) -> None:
+        from collections import Counter
+
+        name = "Prüfzusammenfassung"
+        if name in self.wb.sheetnames:
+            del self.wb[name]
+        ws = self.wb.create_sheet(name)
+        ws.column_dimensions["A"].width = 28
+        ws.column_dimensions["B"].width = 14
+        ws.column_dimensions["C"].width = 10
+        ws.column_dimensions["D"].width = 70
+
+        n = {s: sum(1 for r in results if r.status == s) for s in JobStatus}
+        rows = [
+            ("Zeichnungsprüfung – Zusammenfassung", "", "", ""),
+            ("Geprüft am", results[-1].checked_at if results else "", "", ""),
+            ("Materialnummern gesamt", len(results), "", ""),
+            ("OK", n[JobStatus.OK], "", ""),
+            ("Mit Findings", n[JobStatus.FINDINGS], "", ""),
+            ("Fehlgeschlagen", n[JobStatus.FAILED], "", ""),
+            ("", "", "", ""),
+            ("Regel", "Bewertung", "Anzahl", "Beispiel"),
+        ]
+        counter: Counter[tuple[str, Severity]] = Counter()
+        example: dict[str, str] = {}
+        for r in results:
+            for f in r.findings:
+                counter[(f.code, f.severity)] += 1
+                example.setdefault(f.code, f.text)
+        for (code, sev), count in counter.most_common():
+            rows.append((code, SEVERITY_LABEL[sev], count,
+                         example.get(code, "")))
+        for row in rows:
+            ws.append(list(row))
+        for cell in (ws["A1"], *ws[8]):
+            cell.font = Font(bold=True)
+
     def save(self) -> None:
         try:
             self.wb.save(self.path)

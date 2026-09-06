@@ -81,6 +81,21 @@ def _draw_page(img: Image.Image, result: MaterialResult, page: int,
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=color)
         draw.text((cx, cy), str(idx), font=f_marker, fill="white", anchor="mm")
 
+    # Status-Stempel oben links (Gesamturteil auf einen Blick)
+    if page == 0:
+        worst = result.worst_severity
+        if worst is None or worst <= Severity.INFO:
+            stamp, color = "OK", (47, 125, 50)
+        else:
+            stamp = {Severity.WARNING: "PRÜFEN", Severity.ERROR: "FEHLER",
+                     Severity.BLOCKER: "K.O."}[worst]
+            color = COLORS[worst]
+        f_stamp = _font(34)
+        text = f" {stamp} · {result.material} "
+        tw = draw.textlength(text, font=f_stamp)
+        draw.rectangle([16, 16, 16 + tw + 12, 70], outline=color, width=5)
+        draw.text((22, 26), text, font=f_stamp, fill=color)
+
     # Legende rechts
     lx = img.width + PAD
     y = PAD

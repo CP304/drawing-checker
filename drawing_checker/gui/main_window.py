@@ -16,16 +16,18 @@ from pathlib import Path
 
 import openpyxl
 from openpyxl.utils import get_column_letter
-from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QColor, QIcon
+from PySide6.QtCore import QObject, QSettings, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QHeaderView,
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
-    QProgressBar, QPushButton, QStackedWidget, QTableWidget, QTableWidgetItem,
-    QTextEdit, QVBoxLayout, QWidget,
+    QProgressBar, QPushButton, QSplitter, QStackedWidget, QTabWidget,
+    QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
 
-from ..core.models import JobStatus, MaterialResult, RunConfig, Severity
+from ..core.models import (
+    JobStatus, MaterialResult, RunConfig, Severity, SEVERITY_LABEL,
+)
 from ..core.orchestrator import Callbacks, Orchestrator, Progress
 from ..report.excel_writer import read_materials
 from ..sap.adapter import SapAdapter
@@ -81,6 +83,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self._build_step1(profiles))
         self.stack.addWidget(self._build_step2())
         self.stack.addWidget(self._build_step3())
+        self._load_settings()
 
     # ================================================== Schritt 1: Datei
     def _build_step1(self, profiles: list[str]) -> QWidget:
@@ -286,13 +289,36 @@ class MainWindow(QMainWindow):
         self.lbl_current = QLabel("")
         lay.addWidget(self.lbl_current)
 
-        body = QHBoxLayout()
+        splitter = QSplitter(Qt.Horizontal)
         self.result_list = QListWidget()
-        body.addWidget(self.result_list, stretch=1)
+        self.result_list.currentItemChanged.connect(self._show_detail)
+        self.result_list.itemDoubleClicked.connect(self._open_detail_image)
+        splitter.addWidget(self.result_list)
+
+        tabs = QTabWidget()
+        detail = QWidget()
+        dlay = QVBoxLayout(detail)
+        self.detail_text = QTextEdit()
+        self.detail_text.setReadOnly(True)
+        self.detail_text.setPlaceholderText(
+            "Ergebnis links anklicken, um Mängel und Zeichnung zu sehen.")
+        dlay.addWidget(self.detail_text, stretch=2)
+        self.preview = QLabel()
+        self.preview.setAlignment(Qt.AlignCenter)
+        self.preview.setMinimumHeight(220)
+        self.preview.setStyleSheet("background:#e8e8e8; border:1px solid #bbb;")
+        dlay.addWidget(self.preview, stretch=3)
+        self.btn_image = QPushButton("Zeichnung in voller Größe öffnen")
+        self.btn_image.setEnabled(False)
+        self.btn_image.clicked.connect(self._open_detail_image)
+        dlay.addWidget(self.btn_image)
+        tabs.addTab(detail, "Details")
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
-        body.addWidget(self.log_view, stretch=1)
-        lay.addLayout(body, stretch=1)
+        tabs.addTab(self.log_view, "Protokoll")
+        splitter.addWidget(tabs)
+        splitter.setSizes([340, 720])
+        lay.addWidget(splitter, stretch=1)
 
         row = QHBoxLayout()
         self.btn_pause = QPushButton("Pause")
@@ -302,6 +328,14 @@ class MainWindow(QMainWindow):
         self.btn_stop.clicked.connect(self._stop_run)
         row.addWidget(self.btn_stop)
         row.addStretch()
+        self.btn_retry = QPushButton("Fehlgeschlagene erneut prüfen")
+        self.btn_retry.clicked.connect(self._retry_failed)
+        self.btn_retry.setEnabled(False)
+        row.addWidget(self.btn_retry)
+        self.btn_report = QPushButton("Bericht öffnen")
+        self.btn_report.clicked.connect(self._open_report)
+        self.btn_report.setEnabled(False)
+        row.addWidget(self.btn_report)
         self.btn_open = QPushButton("Ergebnisordner öffnen")
         self.btn_open.clicked.connect(self._open_results)
         self.btn_open.setEnabled(False)
@@ -313,8 +347,71 @@ class MainWindow(QMainWindow):
         lay.addLayout(row)
         return w
 
-    def _start_run(self):
+    # ------------------------------------------------------ Detailansicht
+    SEV_HTML = {
+        Severity.INFO: "#4682b4",
+        Severity.WARNING: "#e69100",
+        Severity.ERROR: "#c81e1e",
+        Severity.BLOCKER: "#8c008c",
+    }
+
+    def _show_detail(self, item: QListWidgetItem | None, _prev=None) -> None:
+        self.preview.clear()
+        self.btn_image.setEnabled(False)
+        if item is None:
+            self.detail_text.clear()
+            return
+        r: MaterialResult = item.data(Qt.UserRole)
+        if r is None:
+            return
+        parts = [f"<h3>{r.material}</h3>",
+                 f"<p>Geprüft am {r.checked_at}"
+                 + (f" · letzte Zeichnungsänderung {r.drawing_rev_date}"
+                    if r.drawing_rev_date else "")
+                 + (f"<br>Fertigungsverfahren: {', '.join(r.processes)}"
+                    if r.processes else "") + "</p>"]
+        if r.error:
+            parts.append(f'<p style="color:#c81e1e"><b>Technischer Fehler:</b> '
+                         f"{r.error}</p>")
+        if r.step_summary:
+            parts.append(f'<p style="color:#555">{r.step_summary}</p>')
+        if not r.findings:
+            parts.append('<p style="color:#2f7d32"><b>Keine Beanstandungen.'
+                         "</b></p>")
+        for i, f in enumerate(r.sorted_findings(), start=1):
+            color = self.SEV_HTML[f.severity]
+            detail = f"<br><small>{f.detail}</small>" if f.detail else ""
+            parts.append(
+                f'<p style="color:{color}"><b>{i}. [{SEVERITY_LABEL[f.severity]}]'
+                f" {f.code}</b><br>{f.text}{detail}</p>")
+        self.detail_text.setHtml("".join(parts))
+
+        if r.screenshot and Path(r.screenshot).exists():
+            pix = QPixmap(str(r.screenshot))
+            if not pix.isNull():
+                self.preview.setPixmap(pix.scaled(
+                    self.preview.size(), Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation))
+                self.btn_image.setEnabled(True)
+
+    def _open_detail_image(self, *_):
+        item = self.result_list.currentItem()
+        r = item.data(Qt.UserRole) if item else None
+        if r and r.screenshot and Path(r.screenshot).exists():
+            self._open_path(Path(r.screenshot))
+
+    def _open_report(self):
+        if self.orchestrator and self.orchestrator.report_path:
+            self._open_path(self.orchestrator.report_path)
+
+    def _retry_failed(self):
+        self._start_run(resume=True)
+
+    def _start_run(self, resume: bool | None = None):
+        if resume is None:
+            resume = self.chk_resume.isChecked()
         cfg = self._make_config()
+        self._save_settings(cfg)
         try:
             self.adapter = self.make_adapter(cfg)
             self.adapter.ensure_ready()
@@ -331,17 +428,20 @@ class MainWindow(QMainWindow):
         self.bridge.log_line.connect(self._on_log)
         self.bridge.finished.connect(self._on_finished)
         self.orchestrator = Orchestrator(
-            cfg, self.adapter, self.bridge.callbacks(),
-            resume=self.chk_resume.isChecked())
+            cfg, self.adapter, self.bridge.callbacks(), resume=resume)
         self.run_dir = self.orchestrator.run_dir
 
         self.result_list.clear()
+        self.detail_text.clear()
+        self.preview.clear()
         self.log_view.clear()
         self.progress_bar.setValue(0)
         self.btn_pause.setEnabled(True)
         self.btn_pause.setText("Pause")
         self.btn_stop.setEnabled(True)
         self.btn_new.setEnabled(False)
+        self.btn_retry.setEnabled(False)
+        self.btn_report.setEnabled(False)
         self.stack.setCurrentIndex(2)
         self.orchestrator.start()
 
@@ -382,6 +482,7 @@ class MainWindow(QMainWindow):
         }
         item = QListWidgetItem(f"{r.material}  –  {texts.get(r.status, '?')}")
         item.setForeground(STATUS_COLOR.get(r.status, QColor(0, 0, 0)))
+        item.setData(Qt.UserRole, r)
         self.result_list.addItem(item)
         self.result_list.scrollToBottom()
 
@@ -393,20 +494,50 @@ class MainWindow(QMainWindow):
         self.btn_stop.setEnabled(False)
         self.btn_open.setEnabled(True)
         self.btn_new.setEnabled(True)
+        self.btn_retry.setEnabled(p.failed > 0)
+        self.btn_report.setEnabled(
+            bool(self.orchestrator and self.orchestrator.report_path))
         self.lbl_current.setText(p.message or "Fertig.")
         QMessageBox.information(self, "Prüfung abgeschlossen",
                                 p.message or "Die Prüfung ist abgeschlossen.")
 
     def _open_results(self):
         target = self.run_dir or (self.excel_path and self.excel_path.parent)
-        if not target:
-            return
+        if target:
+            self._open_path(Path(target))
+
+    @staticmethod
+    def _open_path(path: Path) -> None:
         if sys.platform == "win32":
-            subprocess.Popen(["explorer", str(target)])
+            subprocess.Popen(["explorer" if path.is_dir() else "cmd",
+                              *([] if path.is_dir() else ["/c", "start", ""]),
+                              str(path)])
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", str(target)])
+            subprocess.Popen(["open", str(path)])
         else:
-            subprocess.Popen(["xdg-open", str(target)])
+            subprocess.Popen(["xdg-open", str(path)])
+
+    # ---------------------------------------------- Einstellungen merken
+    def _save_settings(self, cfg: RunConfig) -> None:
+        s = QSettings("DrawingChecker", "DrawingChecker")
+        s.setValue("excel_path", str(cfg.excel_path))
+        s.setValue("sheet", cfg.sheet_name)
+        s.setValue("column", cfg.material_column)
+        s.setValue("profile", cfg.material_group)
+        s.setValue("system", cfg.sap_connection)
+
+    def _load_settings(self) -> None:
+        s = QSettings("DrawingChecker", "DrawingChecker")
+        last = s.value("excel_path", "")
+        if last and Path(last).exists():
+            self._set_file(Path(last))
+            sheet = s.value("sheet", "")
+            if sheet and self.cmb_sheet.findText(sheet) >= 0:
+                self.cmb_sheet.setCurrentText(sheet)
+        profile = s.value("profile", "")
+        if profile and self.cmb_profile.findText(profile) >= 0:
+            self.cmb_profile.setCurrentText(profile)
+        self.txt_system.setText(s.value("system", "P11") or "P11")
 
     def _reset(self):
         self.orchestrator = None

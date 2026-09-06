@@ -104,9 +104,9 @@ den Geometrieabgleich ändern. Profile erben per `inherit` voneinander.
    liegt.
 4. Erster Durchstich mit 2–3 echten Materialnummern, dann Kalibrierung der
    Checks an echten Zeichnungen (Regel-Severities in `profiles.yaml`).
-5. Auslieferung: `pyinstaller --onefile --windowed -n DrawingChecker
-   drawing_checker/app.py` (Windows; `rules/profiles.yaml` als Data-File
-   mitgeben).
+5. Auslieferung: `pyinstaller packaging/DrawingChecker.spec` (Windows;
+   Wissenspakete werden mitgepackt, Anwender-Ergänzungen kommen in einen
+   Ordner `regeln/` neben die .exe).
 
 Weiteres Wissen einpflegen (Normen, Werkstoffe, Regeln) ohne Code: siehe
 [KNOWHOW.md](KNOWHOW.md). Echte Kalibrier-Zeichnungen: siehe

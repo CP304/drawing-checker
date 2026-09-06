@@ -70,6 +70,7 @@ class Orchestrator:
         self.state = (RunState.load(config, self.run_dir) if resume
                       else RunState(config, self.run_dir))
         self.profile = load_profile(config.material_group)
+        self.report_path: Path | None = None
         self._thread: threading.Thread | None = None
 
     def _resolve_run_dir(self, resume: bool) -> Path:
@@ -103,6 +104,12 @@ class Orchestrator:
 
     # ------------------------------------------------------------ Hauptlauf
     def _run(self) -> None:
+        # Lauf-Logdatei im Ergebnisordner (zusätzlich zum globalen Log).
+        run_log = logging.FileHandler(self.run_dir / "lauf.log",
+                                      encoding="utf-8")
+        run_log.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)-7s %(name)s: %(message)s", "%H:%M:%S"))
+        logging.getLogger().addHandler(run_log)
         try:
             self._run_inner()
         except Exception as exc:  # letzte Verteidigungslinie des Threads
@@ -110,6 +117,8 @@ class Orchestrator:
             self.progress.message = f"Lauf abgebrochen: {exc}"
             self.cb.on_log(self.progress.message)
         finally:
+            logging.getLogger().removeHandler(run_log)
+            run_log.close()
             self.cb.on_finished(self.progress)
 
     def _run_inner(self) -> None:
@@ -152,6 +161,23 @@ class Orchestrator:
             self.progress.done += 1
             self.cb.on_result(result)
             self.cb.on_progress(self.progress)
+
+        # Abschluss: Zusammenfassung in Excel + HTML-Bericht
+        all_results = list(self.state.results.values())
+        try:
+            workbook.finalize(all_results)
+            workbook.save()
+        except Exception:
+            log.exception("Excel-Zusammenfassung fehlgeschlagen")
+        try:
+            from ..report.html_report import write_html_report
+
+            self.report_path = write_html_report(
+                self.config, all_results, self.run_dir, self.profile.name,
+                duration_s=time.time() - self.state.started)
+            self._log(f"Bericht erstellt: {self.report_path.name}")
+        except Exception:
+            log.exception("HTML-Bericht fehlgeschlagen")
 
         self.progress.current = ""
         self.progress.message = (

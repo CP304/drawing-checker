@@ -40,7 +40,23 @@ def main() -> int:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--check-rules", action="store_true",
                         help="Wissenspakete (YAML) validieren und beenden")
+    parser.add_argument("--list-rules", action="store_true",
+                        help="alle Prüfregeln je Profil ausgeben und beenden")
     args = parser.parse_args()
+
+    if args.list_rules:
+        from .checks.base import load_profile, load_profiles_data
+
+        for pname in sorted(load_profiles_data(),
+                            key=lambda n: (n != "default", n)):
+            prof = load_profile(pname)
+            print(f"\nProfil {pname!r}  "
+                  f"(STEP-Toleranz rel={prof.step_tolerance.get('rel')}, "
+                  f"abs={prof.step_tolerance.get('abs')} mm)")
+            for code in sorted(prof.rules):
+                state = "an " if prof.enabled(code) else "AUS"
+                print(f"  [{state}] {code:<24} {prof.severity(code).name.lower()}")
+        return 0
 
     if args.check_rules:
         from .checks.rules_check import format_report, validate_rules
