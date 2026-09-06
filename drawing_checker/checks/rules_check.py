@@ -40,7 +40,8 @@ class Issue:
 def validate_rules() -> tuple[list[Issue], dict[str, int]]:
     """Prüft alle Wissenspakete; liefert (Probleme, Statistik)."""
     issues: list[Issue] = []
-    stats = {"materialien": 0, "normen": 0, "profile": 0, "ordner": len(rules_dirs())}
+    stats = {"materialien": 0, "normen": 0, "profile": 0, "beschaffung": 0,
+             "halbzeuge": 0, "ordner": len(rules_dirs())}
 
     # ---------------------------------------------------------- materials
     seen_names: set[str] = set()
@@ -113,6 +114,38 @@ def validate_rules() -> tuple[list[Issue], dict[str, int]]:
                 issues.append(Issue(f.name, where, perr))
             stats["normen"] += 1
 
+    # ------------------------------------------------------- beschaffung
+    for f in rules_files("beschaffung*.yaml"):
+        data, err = _load_yaml(f)
+        if err:
+            issues.append(Issue(f.name, "Datei", err))
+            continue
+        for key in ("vage", "hausnormen"):
+            for i, e in enumerate(data.get(key) or [], start=1):
+                where = f"{key}, Eintrag {i}"
+                if not isinstance(e, dict):
+                    issues.append(Issue(f.name, where, "Eintrag ist kein Mapping"))
+                    continue
+                if "pattern" not in e or "message" not in e:
+                    issues.append(Issue(
+                        f.name, where,
+                        "Felder 'pattern' und 'message' sind Pflicht"))
+                    continue
+                perr = _check_regex(e["pattern"])
+                if perr:
+                    issues.append(Issue(f.name, where, perr))
+                stats["beschaffung"] += 1
+        for key, values in (data.get("halbzeuge") or {}).items():
+            if not isinstance(values, list) or not values:
+                issues.append(Issue(f.name, f"halbzeuge/{key}",
+                                    "Liste von Zahlen erwartet"))
+                continue
+            for v in values:
+                if not isinstance(v, (int, float)) or v <= 0:
+                    issues.append(Issue(f.name, f"halbzeuge/{key}",
+                                        f"ungültiges Maß {v!r}"))
+            stats["halbzeuge"] += len(values)
+
     # ------------------------------------------------------------ profiles
     try:
         profiles = load_profiles_data()
@@ -164,7 +197,8 @@ def format_report(issues: list[Issue], stats: dict[str, int]) -> str:
     lines = [
         "Regelordner: " + ", ".join(str(d) for d in rules_dirs()),
         f"Geladen: {stats['materialien']} Werkstoffe, {stats['normen']} "
-        f"Normeinträge, {stats['profile']} Profile",
+        f"Normeinträge, {stats['beschaffung']} Beschaffungsregeln, "
+        f"{stats['halbzeuge']} Halbzeugmaße, {stats['profile']} Profile",
     ]
     if issues:
         lines.append(f"\n{len(issues)} Problem(e) gefunden:")

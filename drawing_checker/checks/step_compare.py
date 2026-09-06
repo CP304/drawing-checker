@@ -405,6 +405,12 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
 
     unit_error = check_unit_mismatch(ctx, geometry, dims)
     extra = [check_mass(ctx, geometry), check_hole_pattern(ctx, geometry, dims)]
+    if geometry.backend == "occ" and geometry.volume:
+        # Diagnose zur Massenabweichung: passt die Gewichtsangabe zu einem
+        # ANDEREN Werkstoff? (kopiertes Schriftfeld, Werkstoff geändert)
+        from .mass_checks import check_density_hint
+
+        check_density_hint(ctx, geometry.volume)
     check_threads(ctx, geometry, dims)
     check_assembly_vs_part(ctx, geometry)
     from .scale_checks import check_view_vs_model

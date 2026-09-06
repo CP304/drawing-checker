@@ -1,6 +1,6 @@
 # Regelkatalog
 
-Alle 81 Prüfregeln des Drawing Checkers – Grundlage für die Abstimmung mit
+Alle 95 Prüfregeln des Drawing Checkers – Grundlage für die Abstimmung mit
 dem Fachbereich. Jede Regel ist über `drawing_checker/rules/profiles.yaml`
 (bzw. ein eigenes Paket in `regeln/`) einzeln abschaltbar, und ihre Severity
 ist frei einstellbar. Die aktuell aktiven Regeln zeigt
@@ -23,6 +23,10 @@ Sichtprüfung nötig · `Hinweis` = informativ.
 | `DOC.OCR` | Prüfen | Prüfung basiert auf OCR (eingeschränkte Zuverlässigkeit) |
 | `DOC.BALLOONS` | Prüfen | Stückliste vorhanden, aber keine Positionsballone erkennbar |
 | `DOC.GDT_GRAPHIC` | Hinweis | Toleranzrahmen nur als Grafik – Toleranzart visuell prüfen |
+| `DOC.SHEET_COUNT` | Fehler | „Blatt 1 von 3", geliefert wurde weniger – Zeichnung unvollständig |
+| `DOC.ANNOTATIONS` | Prüfen | Nachträgliche PDF-Kommentare/Stempel/Freihandeinträge (Rotstift) |
+| `DOC.DATE_FUTURE` | Prüfen | Datum auf der Zeichnung liegt in der Zukunft |
+| `DOC.DECIMAL_MIXED` | Prüfen | Dezimalkomma und -punkt gemischt – international mehrdeutig |
 
 ## Schriftfeld (TB) – ISO 7200
 
@@ -71,6 +75,7 @@ Bohrung darf unrund oder krumm sein, solange die Messpunkte stimmen.
 | `SURF.EDGES` | Prüfen | Kein Kantenzustand (ISO 13715 oder „Kanten gebrochen") |
 | `SURF.UNREALISTIC` | Fehler | Rauheit feiner als das genannte Verfahren liefert (z. B. Ra 0,8 auf Gussfläche) |
 | `SURF.UNREALISTIC_MINOR` | Prüfen | Ra < 0,4 µm ohne Angabe eines Feinbearbeitungsverfahrens |
+| `SURF.TOL_MISMATCH` | Prüfen | Rauheit zu grob für die engste Maßtoleranz (Rz > 50 % der Toleranzbreite) – das Maß ist so nicht reproduzierbar messbar |
 
 ## Darstellung und Bemaßung (VIEW, DIM, SCALE, THRD)
 
@@ -79,8 +84,23 @@ Bohrung darf unrund oder krumm sein, solange die Messpunkte stimmen.
 | `VIEW.PROJECTION` | Prüfen | Projektionsmethode nicht nachweisbar (bei ASME Y14.5 impliziert) |
 | `VIEW.UNIT` | Prüfen | Einheit nicht deklariert |
 | `DIM.CHAIN` | Prüfen | Geschlossene Maßkette: Teilmaße auf einer Maßlinie summieren sich zum ebenfalls tolerierten Gesamtmaß |
+| `DIM.TOL_ORDER` | Fehler | Grenzabmaße vertauscht (oberes Abmaß kleiner als unteres) – leeres Toleranzfeld, nicht fertigbar |
+| `DIM.BASIC_TOL` | Fehler | Theoretisch genaues Maß (eingerahmt) zusätzlich toleriert – Widerspruch zu ISO 1101 |
 | `THRD.FIT_CLASS` | Fehler | Gewinde mit Passungsklasse bemaßt („M12 H7" statt 6H/6g, ISO 965) |
 | `SCALE.MISMATCH` | *(aus)* | Gemessene Ansicht überschreitet das größte eingetragene Maß |
+
+## Masse-Plausibilität ohne STEP (MASS)
+
+| Code | Severity | Prüfung |
+|---|---|---|
+| `MASS.IMPOSSIBLE` | Fehler | Gewichtsangabe schwerer als ein **voller** Quader der Hüllmaße – physikalisch unmöglich; nennt den Faktor (1000 ≈ g/kg vertauscht) |
+| `MASS.TOO_LIGHT` | Prüfen | Füllgrad unter 1 % des Hüllquaders – bei Blech/Schweißrahmen normal, sonst verdächtig |
+| `MASS.DENSITY_HINT` | Prüfen | Mit STEP: Gewicht/Modellvolumen ergibt die Dichte eines **anderen** Werkstoffs (kopiertes Schriftfeld) |
+
+Die Hüllmaße stammen aus den drei größten Zeichnungsmaßen und sind eher zu
+groß geschätzt – das Urteil „unmöglich" ist damit auf der sicheren Seite.
+Gewichtsangaben mit „Rohteil"/„brutto" werden erkannt und dem Fertiggewicht
+nachgeordnet.
 
 ## Fertigungsgerechtigkeit (MFG)
 
@@ -89,6 +109,17 @@ Bohrung darf unrund oder krumm sein, solange die Messpunkte stimmen.
 | `MFG.TIGHT_TOL` | Prüfen | Sehr enge Toleranz (IT ≤ 5 bzw. < 10 µm) – stärkster Kostentreiber der Zerspanung |
 | `MFG.DEEP_HOLE` | Prüfen | Bohrung mit Tiefe/Durchmesser > 5 (Tiefbohren nötig) |
 | `MFG.SHARP_CORNER` | Prüfen | „R0"/scharfe Innenecke – mit Fräser nicht herstellbar |
+
+## Internationale Beschaffung (PUR)
+
+| Code | Severity | Prüfung |
+|---|---|---|
+| `PUR.VAGUE_SPEC` | Prüfen | Unbestimmte Angaben („ca. 20", „nach Absprache", „sauber entgraten", „TBD") – nicht kalkulierbar, nicht abnahmefähig |
+| `PUR.INTERNAL_NORM` | Prüfen | Verweis auf Werk-/Konzernnormen (WN, HN, TL, MBN, VW, DBL …), die ein externer Lieferant nicht beziehen kann |
+| `PUR.STOCK_SIZE` | Hinweis | Blechdicke/Rundmaterial außerhalb der Vorzugsmaße – Sondermaß mit Preis- und Lieferzeitfolge |
+
+Formulierungen, Hausnorm-Kürzel und Vorzugsmaße stehen in
+`rules/beschaffung.yaml` und sind ohne Codeänderung erweiterbar.
 
 ## Sprache (LANG)
 
@@ -110,6 +141,7 @@ Bohrung darf unrund oder krumm sein, solange die Messpunkte stimmen.
 | `MAT.ANODIZE_LIMITED` | Prüfen | Nur bedingt eloxierbar (7075) |
 | `MAT.CAST_CONFLICT` | Prüfen | Gusskontext ohne Gusswerkstoff |
 | `COAT.FIT` | Prüfen | Beschichtung + Passung/Gewinde ohne Freihalte-/Nacharbeitsvermerk |
+| `COAT.EMBRITTLEMENT` | Fehler | Galvanische Beschichtung an hochfestem Bauteil (≥ 1000 MPa / 320 HV / 32 HRC / Klasse 10.9) ohne geforderte Wasserstoffarmglühung nach EN ISO 4042 |
 | `PROC.STUD_ON_ZINC` | Fehler | Schweißbolzen auf feuerverzinktem Teil |
 | `PROC.WELD_ZINC_ORDER` | Prüfen | Schweißen und Verzinken ohne Reihenfolgeangabe |
 | `WELD.MIXED` | Fehler | Aluminium + Stahl geschweißt |

@@ -32,6 +32,7 @@ liegen neben den mitgelieferten und überstehen Updates des Tools.
 | `rules/profiles.yaml` | Regeln je Materialgruppe: an/aus, Severity, Schlüsselwörter, Toleranzbänder für den Geometrieabgleich | Fachbereich |
 | `rules/materials.yaml` | Werkstoffe: Erkennungsmuster + Eigenschaften (schweißgeeignet, härtbar, verzinkbar, eloxierbar, Guss) → speist die Widerspruchsprüfung | Fachbereich/Schweißaufsicht |
 | `rules/norms.yaml` | Zurückgezogene/ersetzte Normen mit Hinweis auf den Nachfolger | Normenstelle |
+| `rules/beschaffung.yaml` | Unbestimmte Formulierungen, nicht beziehbare Haus-/Konzernnormen, Vorzugsmaße für Halbzeuge | Einkauf/Arbeitsvorbereitung |
 
 ## Massenimport statt Handarbeit
 

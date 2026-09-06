@@ -169,6 +169,84 @@ def run_process_checks(ctx: CheckContext, dims: list[DimValue]) -> None:
     check_cast_details(ctx)
     check_sheet_details(ctx, dims)
     check_heat_treatment(ctx)
+    check_hydrogen_embrittlement(ctx)
+
+
+# --- Wasserstoffversprödung (EN ISO 4042 / EN ISO 9588) -------------------
+# Galvanische (elektrolytische) Beschichtungen setzen Wasserstoff frei.
+RE_GALVANIC = re.compile(
+    r"galvanisch\s*(?:verzinkt|vernickelt|verchromt)?|elektrolytisch"
+    r"|Zn/?Ni|zink[-\s]?nickel|vercadmiert|Cd\s*besch"
+    r"|electroplat|zinc\s*plated|ISO\s*4042|ISO\s*2081|ISO\s*19598",
+    re.IGNORECASE)
+# Hinweis auf die vorgeschriebene Entsprödung.
+RE_DEEMBRITTLE = re.compile(
+    r"entspröd|wasserstoffarm|wasserstoffvers|entsprödungsglüh|tempern"
+    r"|bak(?:e|ing|en)|hydrogen\s*(?:relief|embrittle)|ISO\s*9588"
+    r"|ISO\s*15330", re.IGNORECASE)
+# Festigkeitsklassen und Härten, ab denen entsprödet werden muss.
+RE_HIGH_STRENGTH_CLASS = re.compile(
+    r"(?:10\.9|12\.9|14\.9)|festigkeitsklasse\s*(?:10|12|14)",
+    re.IGNORECASE)
+
+
+def check_hydrogen_embrittlement(ctx: CheckContext) -> None:
+    """Galvanische Beschichtung auf hochfestem Stahl ohne Entsprödung.
+
+    Nach EN ISO 4042 müssen Teile mit einer Zugfestigkeit ab 1000 MPa
+    (bzw. Härte ab 320 HV / 32 HRC) und Festigkeitsklassen ab 10.9 nach dem
+    galvanischen Beschichten wasserstoffarm geglüht werden – sonst brechen
+    sie verzögert und ohne Vorankündigung. Auf Zeichnungen fehlt die
+    Forderung regelmäßig, weil sie als „Sache des Beschichters" gilt.
+    """
+    if not ctx.profile.enabled("COAT.EMBRITTLEMENT"):
+        return
+    hit = _find(ctx, RE_GALVANIC)
+    if hit is None or _find(ctx, RE_DEEMBRITTLE):
+        return
+    _m, bbox, page = hit
+    reason = _high_strength_reason(ctx)
+    if not reason:
+        return
+    ctx.add("COAT.EMBRITTLEMENT",
+            f"Galvanische Beschichtung an hochfestem Bauteil ({reason}) ohne "
+            f"geforderte Entsprödung",
+            bbox=bbox, page=page,
+            detail="EN ISO 4042 verlangt ab 1000 MPa bzw. 320 HV eine "
+                   "Wasserstoffarmglühung (typisch 190–230 °C, ≥ 4 h, "
+                   "innerhalb von 4 h nach dem Beschichten); die Wirksamkeit "
+                   "wird nach EN ISO 15330 nachgewiesen. Ohne diese Angabe "
+                   "drohen verzögerte Sprödbrüche. Alternativ mechanisch "
+                   "beschichten oder eine Zinklamellenbeschichtung "
+                   "(ISO 10683) vorschreiben.")
+
+
+def _high_strength_reason(ctx: CheckContext) -> str:
+    """Begründung, warum das Teil als hochfest gilt ("" = ist es nicht)."""
+    text = ctx.pdf.full_text()
+    m = RE_HIGH_STRENGTH_CLASS.search(text)
+    if m:
+        return f"Festigkeitsklasse {m.group(0)}"
+    for m in RE_HARDNESS_HRC.finditer(text):
+        try:
+            if float(m.group(1).replace(",", ".")) >= 32:
+                return f"{m.group(0).strip()}"
+        except ValueError:
+            continue
+    for m in RE_HARDNESS_HV.finditer(text):
+        try:
+            if float(m.group(1)) >= 320:
+                return f"{m.group(0).strip()}"
+        except ValueError:
+            continue
+    for m in RE_STRENGTH.finditer(text):
+        for group in m.groups():
+            try:
+                if group and float(str(group).replace(",", ".")) >= 1000:
+                    return f"{m.group(0).strip()}"
+            except ValueError:
+                continue
+    return ""
 
 
 # --- Wärmebehandlung (DIN 6773) -------------------------------------------

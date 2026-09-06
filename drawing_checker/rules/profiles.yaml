@@ -109,6 +109,24 @@ profiles:
       HT.NO_HARDNESS:  {enabled: true, severity: warning}  # Wärmebehandlung ohne Härtewert
       HT.NO_DEPTH:     {enabled: true, severity: warning}  # Randschichthärten ohne Eht/CHD
       HT.HARDNESS_LIMIT: {enabled: true, severity: error}  # Härte über Werkstoffgrenze
+      COAT.EMBRITTLEMENT: {enabled: true, severity: error}  # galvanisch auf hochfest ohne Entsprödung
+      # --- Bemaßungswidersprüche ------------------------------------------------
+      DIM.TOL_ORDER:   {enabled: true, severity: error}    # Grenzabmaße vertauscht
+      DIM.BASIC_TOL:   {enabled: true, severity: error}    # TED-Maß zusätzlich toleriert
+      SURF.TOL_MISMATCH: {enabled: true, severity: warning, max_ratio: 0.5}
+      # --- Masse-Plausibilität (ohne STEP prüfbar) ------------------------------
+      MASS.IMPOSSIBLE: {enabled: true, severity: error}    # schwerer als der Hüllquader
+      MASS.TOO_LIGHT:  {enabled: true, severity: warning}  # Füllgrad unter 1 %
+      MASS.DENSITY_HINT: {enabled: true, severity: warning} # Gewicht passt zu anderem Werkstoff
+      # --- Dokumenten-Formalien -------------------------------------------------
+      DOC.SHEET_COUNT: {enabled: true, severity: error}    # Blatt 1 von 3, geliefert 1
+      DOC.ANNOTATIONS: {enabled: true, severity: warning}  # nachträgliche PDF-Markierungen
+      DOC.DATE_FUTURE: {enabled: true, severity: warning}  # Datum in der Zukunft
+      DOC.DECIMAL_MIXED: {enabled: true, severity: warning, min_count: 3}
+      # --- Internationale Beschaffung -------------------------------------------
+      PUR.VAGUE_SPEC:   {enabled: true, severity: warning, max_findings: 4}
+      PUR.INTERNAL_NORM: {enabled: true, severity: warning}
+      PUR.STOCK_SIZE:   {enabled: true, severity: info}
       # --- Konsistenz ----------------------------------------------------------
       CONS.MATNO:   {enabled: true, severity: warning}    # Materialnummer auf Zeichnung
       # --- Paket / Geometrie ---------------------------------------------------

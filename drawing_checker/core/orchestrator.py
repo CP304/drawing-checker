@@ -274,6 +274,7 @@ class Orchestrator:
 
             dims = []
             scale_note = ""
+            mass_note = ""
             if has_text:
                 run_drawing_checks(ctx)
                 check_language(ctx)
@@ -281,19 +282,26 @@ class Orchestrator:
                     pdf, float(self.profile.params.get("max_plausible_dim", 6000)))
                 # Tiefenprüfungen auf Basis der extrahierten Maße
                 from ..checks.dimension_checks import run_dimension_checks
+                from ..checks.doc_checks import run_doc_checks
                 from ..checks.gps_checks import run_gps_checks
+                from ..checks.mass_checks import check_mass_plausibility
                 from ..checks.process_checks import run_process_checks
+                from ..checks.purchasing_checks import run_purchasing_checks
 
                 run_gps_checks(ctx, dims)
                 run_dimension_checks(ctx, dims)
                 run_process_checks(ctx, dims)
+                run_purchasing_checks(ctx, dims)
+                run_doc_checks(ctx)
+                mass_note = check_mass_plausibility(ctx, dims)
                 from ..checks.scale_checks import check_scale_consistency
 
                 scale_note = check_scale_consistency(ctx, dims)
             result.step_summary = check_step(ctx, dims)
-            if has_text and scale_note:
+            if has_text:
                 result.step_summary = " | ".join(
-                    x for x in (result.step_summary, scale_note) if x)
+                    x for x in (result.step_summary, scale_note, mass_note)
+                    if x)
 
             result.findings = ctx.findings
             shot = self.run_dir / f"{pkg._safe_name(material)}.png"

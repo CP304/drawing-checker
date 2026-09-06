@@ -136,6 +136,15 @@ NORM_WORDS = {"iso", "din", "en", "vdi", "asme", "ansi", "nf", "bs", "sep",
               "vdg", "awt", "aws", "sae", "astm", "ral"}
 UNIT_NOT_MM = re.compile(r"(kg|g\b|°|grad|deg|%|:|/|µm|hrc|hv|hb)",
                          re.IGNORECASE)
+# Wörter, nach denen eine Zahl keine Länge ist (Gewicht, Stückzahl, Härte).
+NON_DIM_PREV = {"gewicht", "masse", "weight", "mass", "gew", "menge",
+                "stück", "stk", "anzahl", "qty", "pos", "position",
+                "härte", "hardness", "index", "rev", "revision", "blatt",
+                "sheet", "seite", "page", "zone", "auftrag", "order"}
+# Einheiten, die als eigenes Folgewort stehen und ein Längenmaß ausschließen.
+RE_UNIT_AFTER = re.compile(
+    r"^(kg|kgs|g|t|lb|lbs|°|grad|deg|%|µm|um|hrc|hv|hb|n/mm|mpa|bar|nm|min|"
+    r"stk|stück|pcs|pc)\b", re.IGNORECASE)
 RE_SCALE = re.compile(r"^\d+\s*:\s*\d+$")
 RE_LONG_ID = re.compile(r"^\d{6,}$")
 RE_YEAR = re.compile(r"^(19|20)\d{2}$")
@@ -213,7 +222,12 @@ def _parse_word(w: Word, prev_word: str, next_text: str = "") -> list[DimValue]:
         return [mk(parse_number(m.group(1)), DimKind.RADIUS)]
 
     # --- Lineare Maße: nur wenn das ganze Token wie ein Maß aussieht ------
-    if prev_word in NORM_WORDS:
+    if prev_word in NORM_WORDS or prev_word in NON_DIM_PREV:
+        return []
+    # „4200" gefolgt von „kg" ist ein Gewicht, keine Länge. CAD-Systeme
+    # trennen Zahl und Einheit häufig in zwei Wörter.
+    first_next = next_text.split()[:1]
+    if first_next and RE_UNIT_AFTER.match(first_next[0]):
         return []
     if (UNIT_NOT_MM.search(t) or RE_SCALE.match(t) or RE_LONG_ID.match(t)
             or RE_YEAR.match(t)):

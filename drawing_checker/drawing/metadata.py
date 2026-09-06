@@ -83,22 +83,40 @@ RE_WEIGHT_LABEL = re.compile(
 _TO_KG = {"kg": 1.0, "g": 0.001, "t": 1000.0}
 
 
+# Rohteil-/Fertigteilgewicht unterscheiden: verglichen wird mit dem
+# FERTIGGEWICHT, weil das STEP-Modell das fertige Teil beschreibt.
+RE_ROUGH_WEIGHT = re.compile(
+    r"rohteil|rohgewicht|rohmasse|brutto|gross\s*(?:weight|mass)|raw",
+    re.IGNORECASE)
+
+
 def extract_weight_kg(pdf) -> float | None:
     """Masseangabe der Zeichnung in kg; None wenn keine gefunden.
 
-    Bevorzugt Angaben in Textblöcken mit Gewichts-Label (Schriftfeld);
-    fällt sonst auf die erste plausible Einheiten-Angabe zurück.
+    Reihenfolge der Bevorzugung:
+      1. Angaben in Textblöcken mit Gewichts-Label (Schriftfeld), die NICHT
+         als Rohteil-/Bruttogewicht gekennzeichnet sind – das ist das
+         Fertiggewicht und damit der richtige Vergleichswert zum Modell.
+      2. Sonstige beschriftete Angaben (auch Rohgewicht).
+      3. Freistehende Einheiten-Angaben im Text.
     """
+    finished: list[float] = []
     labelled: list[float] = []
     loose: list[float] = []
     for block in pdf.blocks():
         has_label = bool(RE_WEIGHT_LABEL.search(block.text))
+        is_rough = bool(RE_ROUGH_WEIGHT.search(block.text))
         for value, unit in RE_WEIGHT.findall(block.text):
             kg = _to_kg(value, unit)
             if kg is None:
                 continue
-            (labelled if has_label else loose).append(kg)
-    for pool in (labelled, loose):
+            if has_label and not is_rough:
+                finished.append(kg)
+            elif has_label:
+                labelled.append(kg)
+            else:
+                loose.append(kg)
+    for pool in (finished, labelled, loose):
         if pool:
             return max(pool)
     return None

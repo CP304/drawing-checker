@@ -15,6 +15,14 @@ typischen Kostentreiber der Zerspanung ab:
                    herstellbar (Erodieren nötig).
   SURF.UNREALISTIC Rauheit feiner als das angegebene Verfahren liefern kann
                    (z. B. Ra 0,2 auf einer Gussfläche).
+  SURF.TOL_MISMATCH Rauheit zu grob für die geforderte Toleranz – eine
+                   H7-Passung lässt sich mit Rz 63 nicht einhalten, weil
+                   das Rauheitsprofil selbst schon die halbe Toleranz
+                   verbraucht.
+  DIM.TOL_ORDER    Grenzabmaße vertauscht (oberes Abmaß kleiner als das
+                   untere) – das Maß ist so nicht fertigbar.
+  DIM.BASIC_TOL    Theoretisch genaues Maß (eingerahmt) zusätzlich
+                   toleriert – Widerspruch nach ISO 1101.
 """
 from __future__ import annotations
 
@@ -252,9 +260,95 @@ def check_surface_plausibility(ctx: CheckContext) -> None:
                        "auf Verdacht.")
 
 
+def check_tolerance_order(ctx: CheckContext, dims: list[DimValue]) -> None:
+    """Vertauschte Grenzabmaße und tolerierte TED-Maße melden."""
+    for d in dims:
+        if (ctx.profile.enabled("DIM.TOL_ORDER")
+                and d.tol_plus is not None and d.tol_minus is not None
+                and d.tol_plus < d.tol_minus):
+            ctx.add("DIM.TOL_ORDER",
+                    f"Grenzabmaße vertauscht bei „{d.raw}“: oberes Abmaß "
+                    f"{d.tol_plus:+g} liegt unter dem unteren "
+                    f"{d.tol_minus:+g}",
+                    bbox=d.bbox, page=d.page,
+                    detail="So beschrieben ist das Toleranzfeld leer – das "
+                           "Maß kann nicht gefertigt werden. Nach ISO 129-1 "
+                           "steht das obere Abmaß oben bzw. zuerst.")
+        if (ctx.profile.enabled("DIM.BASIC_TOL") and d.is_basic
+                and (d.tol_plus is not None or d.tol_minus is not None
+                     or d.fit)):
+            ctx.add("DIM.BASIC_TOL",
+                    f"Theoretisch genaues Maß „{d.raw}“ trägt zusätzlich "
+                    f"eine Toleranz",
+                    bbox=d.bbox, page=d.page,
+                    detail="Ein eingerahmtes Maß (TED) ist per Definition "
+                           "toleranzfrei; die Abweichung regelt allein die "
+                           "zugehörige Lagetoleranz (ISO 1101). Entweder den "
+                           "Rahmen entfernen oder die Toleranz streichen.")
+
+
+def check_roughness_vs_tolerance(ctx: CheckContext,
+                                 dims: list[DimValue]) -> None:
+    """Rauheit gegen die engste Maßtoleranz prüfen.
+
+    Praxisregel: Das Rauheitsprofil darf die Maßtoleranz nicht aufzehren.
+    Üblich ist Rz ≤ 1/4 der Toleranzbreite; gemeldet wird erst ab der
+    Hälfte, damit nur eindeutige Widersprüche auffallen.
+    """
+    if not ctx.profile.enabled("SURF.TOL_MISMATCH"):
+        return
+    coarsest = _coarsest_roughness_um(ctx)
+    if coarsest is None:
+        return
+    tightest = None
+    for d in dims:
+        span = d.tolerance_span
+        if span and (tightest is None or span < tightest[0]):
+            tightest = (span, d)
+    if tightest is None:
+        return
+    span_mm, dim = tightest
+    span_um = span_mm * 1000.0
+    ratio = float(ctx.profile.rule_param("SURF.TOL_MISMATCH", "max_ratio", 0.5))
+    if coarsest <= span_um * ratio:
+        return
+    ctx.add("SURF.TOL_MISMATCH",
+            f"Rauheit Rz {coarsest:g} µm ist zu grob für die Toleranz von "
+            f"„{dim.raw}“ ({span_um:.0f} µm)",
+            bbox=dim.bbox, page=dim.page,
+            detail=f"Das Rauheitsprofil verbraucht "
+                   f"{coarsest / span_um * 100:.0f} % der Toleranzbreite; "
+                   f"üblich sind höchstens 25 %. Entweder eine feinere "
+                   f"Oberfläche fordern (Rz ≤ {span_um / 4:.1f} µm) oder die "
+                   f"Toleranz aufweiten. Sonst ist das Maß nicht "
+                   f"reproduzierbar messbar.")
+
+
+def _coarsest_roughness_um(ctx: CheckContext) -> float | None:
+    """Gröbste Rauheitsangabe der Zeichnung als Rz in µm.
+
+    Ra-Angaben werden mit dem in der Praxis üblichen Faktor 4 auf Rz
+    umgerechnet (Rz ≈ 4 × Ra für spanend erzeugte Oberflächen).
+    """
+    text = ctx.pdf.full_text()
+    values: list[float] = []
+    for m in RE_RZ_VALUE.finditer(text):
+        values.append(_num(m.group(1)))
+    for m in RE_RA_VALUE.finditer(text):
+        values.append(_num(m.group(1)) * 4.0)
+    values = [v for v in values if 0 < v <= 200]
+    return max(values) if values else None
+
+
+def _num(raw: str) -> float:
+    return float(raw.replace(",", "."))
+
+
 def run_dimension_checks(ctx: CheckContext, dims: list[DimValue]) -> None:
     check_dimension_chain(ctx, dims)
     check_tight_tolerances(ctx, dims)
     check_deep_holes(ctx, dims)
     check_sharp_corners(ctx)
     check_surface_plausibility(ctx)
+    check_tolerance_order(ctx, dims)
+    check_roughness_vs_tolerance(ctx, dims)

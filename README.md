@@ -129,10 +129,26 @@ stillschweigend nichts zu prüfen.
 
 ## Regelkatalog
 
-Alle 81 Regeln mit Severity, Prüflogik und Normbezug sind in
+Alle 95 Regeln mit Severity, Prüflogik und Normbezug sind in
 [REGELKATALOG.md](REGELKATALOG.md) dokumentiert – die Grundlage für die
 Abstimmung mit dem Fachbereich. Ein Test stellt sicher, dass neue Regeln
 dort auftauchen.
+
+## Gewichtsprüfung
+
+Die Gewichtsangabe wird auf zwei Wegen verifiziert:
+
+1. **Mit STEP** (`GEO.MASS`): Modellvolumen × Werkstoffdichte gegen die
+   Angabe im Schriftfeld. Weicht sie ab, nennt `MASS.DENSITY_HINT` zusätzlich
+   den Werkstoff, zu dem die Angabe rechnerisch passen *würde* – der
+   Klassiker beim kopierten Schriftfeld.
+2. **Ohne STEP** (`MASS.IMPOSSIBLE`, `MASS.TOO_LIGHT`): Die Angabe wird gegen
+   einen Hüllquader aus den größten Zeichnungsmaßen gerechnet. Ein Teil kann
+   nicht schwerer sein als der volle Quader – das findet vertauschte
+   Einheiten und verrutschte Kommas ohne jedes Modell.
+
+Rohteil-/Bruttogewichte werden erkannt und dem Fertiggewicht nachgeordnet,
+weil das STEP das fertige Teil beschreibt.
 
 ## Regelkatalog anpassen
 

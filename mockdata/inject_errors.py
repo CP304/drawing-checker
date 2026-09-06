@@ -21,6 +21,11 @@ Injizierbare Fehler (werden reihum kombiniert, s. SZENARIEN):
     remove_edges     Kantenzustand (ISO 13715) wegretuschieren
     obsolete_norm    veralteten Normbezug (DIN 7168) einfügen
     rasterize        Zeichnung in Scan ohne Textlayer verwandeln
+    vague_note       unbestimmte Angaben ("ca.", "nach Absprache", TBD)
+    house_norm       Verweis auf eine nicht beziehbare Werknorm
+    impossible_mass  unmögliche Gewichtsangabe (Faktor 1000, g/kg vertauscht)
+    plating_note     galvanische Beschichtung an hochfestem Teil ohne
+                     Entsprödung (EN ISO 4042)
 """
 from __future__ import annotations
 
@@ -61,6 +66,36 @@ def weld_note(doc: pymupdf.Document) -> str:
     return _insert_note(doc[0], [
         "Schweißnaht a4 umlaufend, ISO 5817-C",
     ], "weld_note")
+
+
+def vague_note(doc: pymupdf.Document) -> str:
+    return _insert_note(doc[0], [
+        "Fertigungshinweise:",
+        "Bohrung ca. 12 mm, Lage nach Absprache.",
+        "Kanten sauber entgraten, Oberfläche wie Muster.",
+        "Beschichtung: TBD",
+    ], "vague_note")
+
+
+def house_norm(doc: pymupdf.Document) -> str:
+    return _insert_note(doc[0], [
+        "Oberflächenschutz nach WN 51204",
+        "Prüfumfang nach TL 245",
+    ], "house_norm")
+
+
+def impossible_mass(doc: pymupdf.Document) -> str:
+    return _insert_note(doc[0], [
+        "Werkstoff: S235JR",
+        "Gewicht: 4200 kg",
+    ], "impossible_mass")
+
+
+def plating_note(doc: pymupdf.Document) -> str:
+    return _insert_note(doc[0], [
+        "Werkstoff: 42CrMo4, vergütet 45 HRC",
+        "galvanisch verzinkt nach ISO 2081, 8 µm",
+    ], "plating_note")
 
 
 def obsolete_norm(doc: pymupdf.Document) -> str:
@@ -123,6 +158,10 @@ MANIPULATIONS = {
     "remove_gentol": remove_gentol,
     "remove_edges": remove_edges,
     "obsolete_norm": obsolete_norm,
+    "vague_note": vague_note,
+    "house_norm": house_norm,
+    "impossible_mass": impossible_mass,
+    "plating_note": plating_note,
 }
 
 # Reihum angewandte Fehlerkombinationen für aufeinanderfolgende Zeichnungen.
@@ -131,6 +170,9 @@ SZENARIEN: list[list[str]] = [
     ["set_material", "weld_note"],
     ["obsolete_norm", "remove_edges"],
     ["german_note", "set_material"],
+    ["vague_note", "house_norm"],
+    ["impossible_mass", "remove_edges"],
+    ["plating_note", "german_note"],
 ]
 
 

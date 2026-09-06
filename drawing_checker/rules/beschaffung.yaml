@@ -1,0 +1,54 @@
+# Wissenspaket „Internationale Beschaffung"
+#
+# Prüft die Zeichnung aus Sicht eines Lieferanten, der weder im Haus sitzt
+# noch die Historie kennt. Alle Listen sind frei erweiterbar; nach dem
+# Bearbeiten `drawing-checker --check-rules` laufen lassen.
+#
+#   vage:        Formulierungen, die keine prüfbare Anforderung sind.
+#                pattern (Regex, case-insensitive) + message.
+#   hausnormen:  Werk-/Konzernnormen, die ein externer Lieferant nicht
+#                beziehen kann. Sie müssen der Anfrage beiliegen.
+#   halbzeuge:   Vorzugsmaße gängiger Halbzeuge. Weicht ein Maß davon ab,
+#                ist das Teil aus dem nächstgrößeren Halbzeug zu fertigen –
+#                teurer und mit längerer Lieferzeit.
+
+vage:
+  - {pattern: '\bca\.\s*\d', message: '„ca." vor einem Maß ist keine prüfbare Angabe'}
+  - {pattern: '\betwa\s+\d', message: '„etwa" vor einem Maß ist keine prüfbare Angabe'}
+  - {pattern: 'nach\s+(?:Absprache|Vereinbarung|Bedarf|Muster|Rücksprache)',
+     message: 'Anforderung „nach Absprache" – der Lieferant kann nicht kalkulieren'}
+  - {pattern: 'wie\s+(?:Muster|Vorlage|bisher|gehabt)',
+     message: 'Verweis auf ein Muster – für eine internationale Anfrage nicht nutzbar'}
+  - {pattern: '\b(?:sauber|gut|ordentlich|einwandfrei|fachgerecht)\s+(?:entgrat|verputz|geschweiss|geschweiß|bearbeit|schleif)',
+     message: 'Subjektive Anforderung – messbar angeben (z. B. Kantenzustand nach ISO 13715)'}
+  - {pattern: 'scharfe?\s+Kanten\s+(?:brechen|entfernen)(?!\s*[:=]?\s*\d)',
+     message: '„Kanten brechen" ohne Maß – Kantenzustand nach ISO 13715 angeben'}
+  - {pattern: '\bggf\.|\bfalls\s+erforderlich|\bbei\s+Bedarf',
+     message: 'Bedingte Anforderung ohne Kriterium – wer entscheidet, wann sie gilt?'}
+  - {pattern: 'siehe\s+(?:Zeichnung|Skizze|Anlage)(?!\s*(?:Nr\.?\s*)?[\w.-]*\d)',
+     message: 'Verweis ohne Dokumentnummer – das Bezugsdokument ist nicht identifizierbar'}
+  - {pattern: '\bTBD\b|\bt\.b\.d\.|noch\s+festzulegen|offen\s*$',
+     message: 'Unfertige Angabe (TBD) – die Zeichnung ist nicht anfragereif'}
+  - {pattern: '\bhandelsüblich\b|\bmarktüblich\b',
+     message: '„handelsüblich" ist länderabhängig – Norm und Bezeichnung angeben'}
+
+hausnormen:
+  - {pattern: '\bWN\s*\d{3,6}\b', message: 'Werknorm WN – dem Lieferanten nicht zugänglich'}
+  - {pattern: '\bHN\s*\d{3,6}\b', message: 'Hausnorm HN – dem Lieferanten nicht zugänglich'}
+  - {pattern: '\bFN\s*\d{3,6}\b', message: 'Firmennorm FN – dem Lieferanten nicht zugänglich'}
+  - {pattern: '\bTL\s*\d{3,6}\b', message: 'Technische Lieferbedingung TL (OEM-Norm) – nur mit Bezugsberechtigung erhältlich'}
+  - {pattern: '\bMBN\s*\d{3,6}\b', message: 'Mercedes-Benz-Norm MBN – nur mit Bezugsberechtigung erhältlich'}
+  - {pattern: '\bVW\s*\d{5}\b', message: 'VW-Norm – nur mit Bezugsberechtigung erhältlich'}
+  - {pattern: '\bDBL\s*\d{3,5}\b', message: 'DBL-Werkstoffblatt – nur mit Bezugsberechtigung erhältlich'}
+  - {pattern: '\bBN\s*\d{3,6}\b', message: 'Betriebsnorm BN – dem Lieferanten nicht zugänglich'}
+  - {pattern: '\bQAB\s*\d+|\bPV\s*\d{3,4}\b', message: 'Interne Prüfvorschrift – muss der Anfrage beiliegen'}
+
+halbzeuge:
+  # Blechdicken in mm (Kaltband/Warmband, gängige Lagerstärken)
+  blech: [0.5, 0.6, 0.75, 0.8, 0.88, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0,
+          4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 15.0, 16.0, 20.0, 25.0, 30.0,
+          35.0, 40.0, 50.0, 60.0, 80.0, 100.0]
+  # Rundmaterial (Blankstahl/gezogen), Durchmesser in mm
+  rund: [3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 30, 32, 35, 36,
+         40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 120, 130, 140,
+         150, 160, 180, 200, 220, 250, 280, 300]
