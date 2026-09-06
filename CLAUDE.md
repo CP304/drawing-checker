@@ -1,0 +1,50 @@
+# Drawing Checker – Hinweise für Claude-Sessions
+
+Internes Windows-Tool: prüft technische Zeichnungen je SAP-Materialnummer
+(YMATDOCS-ZIP mit PDF + optional STEP) auf Normverstöße, fachliche
+Widersprüche und Geometrie-Mismatch. GUI für nicht-technische Anwender.
+Sprache im Code/UI: Deutsch (Docstrings, Findings, Commit-Messages).
+
+## Kommandos
+
+```bash
+pip install -e .[occ,dev]                  # OCP nötig für STEP + Mock-Generierung
+python -m pytest tests/ -q                 # komplette Suite inkl. E2E (~1 min)
+python -m mockdata.generate                # Mockpakete nach mockdata/out/
+python -m drawing_checker.app --headless --mock mockdata/out \
+    --excel mockdata/out/Materialliste_Mock.xlsx --column C
+python -m drawing_checker.app --check-rules   # YAML-Wissenspakete validieren
+python -m drawing_checker.app --list-rules    # Regelkatalog je Profil
+QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # GUI headless
+```
+
+## Architektur (Kurzfassung)
+
+- `core/orchestrator.py` – Ablauf je Materialnummer, Resume-Zustand
+  (`core/state.py`), Retries mit SAP-Recovery; erzeugt am Laufende
+  HTML-Bericht, findings.csv und Excel-Zusammenfassung.
+- `sap/` – Adapter-Interface; `ymatdocs.py` enthält `# VBS:`-Marker, wo die
+  Element-IDs aus dem .vbs-Mitschnitt der Transaktion eingetragen werden
+  (DER offene Punkt für den SAP-Durchstich). `mock.py` liefert ZIPs aus
+  einem Ordner und kann Abstürze simulieren.
+- `drawing/` – PyMuPDF-Textlayer/Rendering, OCR-Fallback, Maßextraktion,
+  Änderungsdatum.
+- `checks/` – Regelwerk. Wissen liegt in `rules/*.yaml` (profiles, materials,
+  norms) – NIE fachliche Listen im Code hartkodieren; YAML erweitern und
+  `--check-rules` laufen lassen. Externe Overlays: Ordner `regeln/` neben
+  der .exe bzw. `DRAWING_CHECKER_RULES`.
+- `checks/step_compare.py` + `checks/contour_projection.py` – Geometrie:
+  Maßabgleich (OBB, Diagonale, Zylinder) + HLR-Silhouetten vs. Ansichten.
+- `report/` – Annotation (Marker, Legende, Status-Stempel), Excel-Rückschrieb
+  (Spalten per Name, nicht per Index!), HTML-Bericht.
+
+## Konventionen
+
+- Jede neue Regel: Code (`GRUPPE.NAME`) in `rules/profiles.yaml` registrieren,
+  Severity dort pflegen, mindestens 1 Positiv- + 1 Negativtest.
+- Unsicheres meldet `warning` („nicht nachweisbar/prüfen“), nie hart `error`.
+- Findings mit `bbox` (PDF-Koordinaten) werden im Bild markiert.
+- Mockdaten sind Test-Fixtures (`tests/conftest.py` baut sie je Lauf);
+  echte Kalibrierzeichnungen liegen in `mockdata/echt_quellen/` (Lizenzen
+  in SOURCES.md), Fehler-Injektion über `mockdata/inject_errors.py`.
+- Vor jedem Push: `python -m pytest tests/ -q` und `--check-rules`.

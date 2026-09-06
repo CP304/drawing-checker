@@ -136,6 +136,10 @@ class MainWindow(QMainWindow):
         self.txt_system = QLineEdit("P11")
         self.txt_system.setFixedWidth(70)
         opts.addWidget(self.txt_system)
+        opts.addSpacing(12)
+        btn_test = QPushButton("Verbindung testen")
+        btn_test.clicked.connect(self._test_connection)
+        opts.addWidget(btn_test)
         opts.addStretch()
         lay.addLayout(opts)
 
@@ -178,6 +182,34 @@ class MainWindow(QMainWindow):
         self.lbl_file.setText(f"<b>{path.name}</b>")
         self.cmb_sheet.clear()
         self.cmb_sheet.addItems(sheets)
+
+    def _test_connection(self):
+        """Verbindungstest ohne Prüflauf – für den Durchstich mit SAP."""
+        if self.excel_path is None:
+            # Config braucht einen Pfad; für den reinen Test genügt ein Dummy.
+            self.excel_path = Path("verbindungstest.xlsx")
+            dummy = True
+        else:
+            dummy = False
+        try:
+            cfg = self._make_config(preview=True)
+            adapter = self.make_adapter(cfg)
+            adapter.ensure_ready()
+            adapter.close()
+            QMessageBox.information(
+                self, "Verbindungstest",
+                ("Mockmodus bereit (Testdatenordner gefunden)."
+                 if cfg.mock_source else
+                 f"Verbindung zu {cfg.sap_connection} steht – Session "
+                 f"gefunden bzw. Anmeldung erfolgreich."))
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Verbindungstest",
+                f"Verbindung nicht möglich:\n{exc}\n\nSAP Logon prüfen "
+                "(läuft es? Scripting aktiviert?) und erneut testen.")
+        finally:
+            if dummy:
+                self.excel_path = None
 
     def _goto_step2(self):
         if self.excel_path is None:
@@ -242,6 +274,36 @@ class MainWindow(QMainWindow):
                     r, c, QTableWidgetItem("" if v is None else str(v)))
         self.selected_column = None
         self.btn_start.setEnabled(False)
+        self._suggest_column(rows)
+
+    def _suggest_column(self, rows) -> None:
+        """Schlägt die wahrscheinlichste Materialnummern-Spalte vor.
+
+        Heuristik: Spalte, in der die meisten Zellen wie Materialnummern
+        aussehen (6–10 Ziffern). Der Anwender kann jederzeit umklicken.
+        """
+        import re
+
+        best, best_hits = None, 0
+        ncols = self.table.columnCount()
+        for c in range(ncols):
+            hits = 0
+            for row in rows[1:]:
+                v = row[c] if c < len(row) else None
+                if v is None:
+                    continue
+                if isinstance(v, float) and v.is_integer():
+                    v = int(v)
+                if re.fullmatch(r"\d{6,10}", str(v).strip()):
+                    hits += 1
+            if hits > best_hits:
+                best, best_hits = c, hits
+        if best is not None and best_hits >= 3:
+            self._column_clicked(best)
+            self.lbl_colinfo.setText(
+                self.lbl_colinfo.text()
+                + "   (automatisch vorgeschlagen – bei Bedarf andere "
+                  "Spalte anklicken)")
 
     def _column_clicked(self, index: int):
         col = get_column_letter(index + 1)
@@ -469,9 +531,14 @@ class MainWindow(QMainWindow):
         self.progress_bar.setMaximum(max(p.total, 1))
         self.progress_bar.setValue(p.done)
         cur = f"Aktuell: {p.current}" if p.current else ""
+        eta = ""
+        if p.eta_s is not None and p.eta_s > 5:
+            minutes = p.eta_s / 60
+            eta = (f"   |   Rest ca. {minutes:.0f} min" if minutes >= 1
+                   else "   |   Rest unter 1 min")
         self.lbl_current.setText(
             f"{cur}   |   ✔ {p.ok} ok   ⚠ {p.findings} mit Findings   "
-            f"✖ {p.failed} fehlgeschlagen")
+            f"✖ {p.failed} fehlgeschlagen{eta}")
 
     def _on_result(self, r: MaterialResult):
         texts = {

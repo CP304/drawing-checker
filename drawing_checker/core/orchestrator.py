@@ -42,6 +42,7 @@ class Progress:
     findings: int = 0
     failed: int = 0
     message: str = ""
+    eta_s: float | None = None   # geschätzte Restdauer
 
 
 @dataclass
@@ -71,6 +72,7 @@ class Orchestrator:
                       else RunState(config, self.run_dir))
         self.profile = load_profile(config.material_group)
         self.report_path: Path | None = None
+        self._durations: list[float] = []
         self._thread: threading.Thread | None = None
 
     def _resolve_run_dir(self, resume: bool) -> Path:
@@ -159,6 +161,13 @@ class Orchestrator:
             workbook.save()
             self._count(result)
             self.progress.done += 1
+            self._durations.append(max(result.duration_s, 0.1))
+            remaining = self.progress.total - self.progress.done
+            if self._durations and remaining > 0:
+                avg = sum(self._durations) / len(self._durations)
+                self.progress.eta_s = avg * remaining
+            else:
+                self.progress.eta_s = None
             self.cb.on_result(result)
             self.cb.on_progress(self.progress)
 
@@ -169,6 +178,10 @@ class Orchestrator:
             workbook.save()
         except Exception:
             log.exception("Excel-Zusammenfassung fehlgeschlagen")
+        try:
+            self._write_findings_csv(all_results)
+        except Exception:
+            log.exception("findings.csv fehlgeschlagen")
         try:
             from ..report.html_report import write_html_report
 
@@ -279,6 +292,24 @@ class Orchestrator:
                          else JobStatus.FINDINGS)
         result.duration_s = time.time() - t0
         return result
+
+    def _write_findings_csv(self, results: list[MaterialResult]) -> None:
+        """Maschinenlesbarer Export je Lauf – Grundlage für KPI-Auswertungen
+        über mehrere Läufe (häufigste Mängel, Lieferanten-/Gruppenvergleich)."""
+        import csv
+
+        from .models import SEVERITY_LABEL
+
+        path = self.run_dir / "findings.csv"
+        with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.writer(fh, delimiter=";")
+            w.writerow(["Materialnummer", "Excel-Zeile", "Regel", "Bewertung",
+                        "Text", "Detail", "Geprüft am", "Status"])
+            for r in results:
+                for f in r.sorted_findings():
+                    w.writerow([r.material, r.row, f.code,
+                                SEVERITY_LABEL[f.severity], f.text, f.detail,
+                                r.checked_at, r.status.value])
 
     # ---------------------------------------------------------------- Utils
     def _wait_if_paused(self) -> None:
