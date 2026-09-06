@@ -18,7 +18,7 @@ profiles:
     rules:
       # --- Schriftfeld / Title Block (ISO 7200) --------------------------------
       TB.DRAWNO:    {enabled: true, severity: error,
-                     keywords: ["Zeichnungsnummer", "Zeichn.-Nr", "Drawing no", "Drawing number", "Document no", "Dokumentennr"]}
+                     keywords: ["Zeichnungsnummer", "Zeichn.-Nr", "Drawing no", "Drawing number", "Document no", "Dokumentennr", "DWG NO", "DWG. NO"]}
       TB.MATERIAL:  {enabled: true, severity: error,
                      keywords: ["Werkstoff", "Material"]}
       TB.SCALE:     {enabled: true, severity: error,

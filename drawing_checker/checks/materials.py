@@ -13,10 +13,16 @@ Fälle führen zu einem Fehler, Unsicheres wird als "Prüfen" (warning) gemeldet
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from .base import CheckContext
+import yaml
+
+from .base import RULES_DIR, CheckContext
+
+log = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------
 # Werkstoffdatenbank
@@ -41,86 +47,33 @@ class Material:
     note: str = ""
 
 
-MATERIALS: list[Material] = [
-    # --- Baustähle ---------------------------------------------------------
-    Material("S235JR", [r"S\s*235\s*JR?\w*", r"1\.0038", r"1\.0037"],
-             "baustahl", weldable="ja", zinc=True),
-    Material("S355J2", [r"S\s*355\s*(?:J2|JR|J0|K2)?(?:\+N|\+AR)?", r"1\.0577",
-                        r"1\.0570"],
-             "baustahl", weldable="ja", zinc=True),
-    # --- Vergütungsstähle --------------------------------------------------
-    Material("C45", [r"\bC45(?:E|R)?\b", r"1\.0503", r"1\.1191"],
-             "verguetung", weldable="bedingt", hardenable={"qt"}, zinc=True,
-             note="Schweißen nur mit Vorwärmung/Nachbehandlung"),
-    Material("42CrMo4", [r"42\s*CrMo\s*4(?:\s*\+QT)?", r"1\.7225"],
-             "verguetung", weldable="bedingt", hardenable={"qt", "nitr"},
-             note="Schweißen nur mit Vorwärmung/Nachbehandlung"),
-    Material("34CrNiMo6", [r"34\s*CrNiMo\s*6", r"1\.6582"],
-             "verguetung", weldable="bedingt", hardenable={"qt", "nitr"}),
-    # --- Einsatzstähle -----------------------------------------------------
-    Material("16MnCr5", [r"16\s*MnCr\s*5", r"1\.7131"],
-             "einsatz", weldable="bedingt", hardenable={"case", "qt"}),
-    Material("20MnCr5", [r"20\s*MnCr\s*5", r"1\.7147"],
-             "einsatz", weldable="bedingt", hardenable={"case", "qt"}),
-    Material("C15", [r"\bC15(?:E|R)?\b", r"1\.0401"],
-             "einsatz", weldable="ja", hardenable={"case"}, zinc=True),
-    # --- Automatenstähle (Schwefel/Blei -> nicht schweißgeeignet) ----------
-    Material("11SMnPb30", [r"11\s*SMnPb\s*30", r"1\.0718"],
-             "automaten", weldable="nein", zinc=True,
-             note="Automatenstahl (Pb/S): nicht schweißgeeignet"),
-    Material("11SMn30", [r"11\s*SMn\s*30", r"9\s*SMn\s*28", r"1\.0715"],
-             "automaten", weldable="nein", zinc=True,
-             note="Automatenstahl (S): nicht schweißgeeignet"),
-    # --- Nichtrostende Stähle ---------------------------------------------
-    Material("1.4301 (X5CrNi18-10)", [r"1\.4301", r"X5CrNi18-?10", r"\bV2A\b",
-                                      r"AISI\s*304\b"],
-             "nirosta", weldable="ja"),
-    Material("1.4404 (X2CrNiMo17-12-2)", [r"1\.4404", r"X2CrNiMo17-?12-?2",
-                                          r"\bV4A\b", r"AISI\s*316L?\b"],
-             "nirosta", weldable="ja"),
-    Material("1.4571", [r"1\.4571", r"X6CrNiMoTi17-?12-?2"],
-             "nirosta", weldable="ja"),
-    Material("1.4305 (X8CrNiS18-9)", [r"1\.4305", r"X8CrNiS18-?9",
-                                      r"AISI\s*303\b"],
-             "nirosta_auto", weldable="nein",
-             note="Automaten-Edelstahl (S-legiert): nicht schweißgeeignet – "
-                  "bei Schweißteilen 1.4301/1.4404 verwenden"),
-    Material("1.4057", [r"1\.4057", r"X17CrNi16-?2"],
-             "nirosta", weldable="bedingt", hardenable={"qt"}),
-    # --- Gusswerkstoffe ----------------------------------------------------
-    Material("EN-GJL-250", [r"EN[-\s]?GJL[-\s]?\d{3}", r"\bGG[-\s]?2[05]\b"],
-             "guss", weldable="nein", castable=True,
-             note="Grauguss: Schmelzschweißen nicht zulässig (nur Sonderverfahren)"),
-    Material("EN-GJS-400-15", [r"EN[-\s]?GJS[-\s]?\d{3}(?:[-\s]?\d{1,2})?",
-                               r"\bGGG[-\s]?[456]0\b"],
-             "guss", weldable="bedingt", castable=True,
-             note="Sphäroguss: Schweißen nur als qualifiziertes Sonderverfahren"),
-    Material("EN AC-AlSi10Mg", [r"EN\s*AC[-\s]?4\d{4}", r"AlSi10Mg", r"AlSi12"],
-             "alu", weldable="bedingt", castable=True, anodize=False),
-    # --- Aluminium-Knetlegierungen ----------------------------------------
-    Material("EN AW-5754 (AlMg3)", [r"EN\s*AW[-\s]?5754", r"AlMg3\b"],
-             "alu", weldable="ja", anodize=True),
-    Material("EN AW-6060/6063", [r"EN\s*AW[-\s]?606[03]", r"AlMgSi0[,.]5"],
-             "alu", weldable="ja", anodize=True),
-    Material("EN AW-6082", [r"EN\s*AW[-\s]?6082", r"AlSi1MgMn", r"AlMgSi1\b"],
-             "alu", weldable="ja", anodize=True),
-    Material("EN AW-7075", [r"EN\s*AW[-\s]?7075", r"AlZn5[,.]5MgCu"],
-             "alu", weldable="nein", anodize=True,
-             note="7075: schmelzschweißen nicht zulässig (Heißrissneigung)"),
-    # --- Kupferwerkstoffe --------------------------------------------------
-    Material("CuZn39Pb3", [r"CuZn39Pb3", r"2\.0401", r"\bMs58\b"],
-             "kupfer", weldable="nein",
-             note="Bleihaltiges Messing: nicht schweißgeeignet"),
-    Material("CuZn37", [r"CuZn37\b", r"2\.0321"], "kupfer", weldable="bedingt"),
-    # --- Kunststoffe -------------------------------------------------------
-    Material("PA6", [r"\bPA\s*6(?:\.6|6)?(?:\s*GF\d{2})?\b"], "kunststoff",
-             weldable="nein"),
-    Material("POM", [r"\bPOM(?:[-\s]?C|[-\s]?H)?\b"], "kunststoff",
-             weldable="nein"),
-    Material("PTFE", [r"\bPTFE\b"], "kunststoff", weldable="nein"),
-    Material("PE-HD/PE1000", [r"\bPE[-\s]?(?:HD|1000|500)\b"], "kunststoff",
-             weldable="nein"),
-]
+def _load_materials() -> list[Material]:
+    """Lädt alle materials*.yaml aus dem rules-Ordner (Wissenspakete)."""
+    out: list[Material] = []
+    for f in sorted(RULES_DIR.glob("materials*.yaml")):
+        data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        for e in data.get("materials", []):
+            try:
+                out.append(Material(
+                    name=e["name"], patterns=list(e["patterns"]),
+                    category=e["category"], weldable=e.get("weldable", "ja"),
+                    hardenable=set(e.get("hardenable", [])),
+                    zinc=bool(e.get("zinc", False)),
+                    anodize=bool(e.get("anodize", False)),
+                    castable=bool(e.get("castable", False)),
+                    note=e.get("note", ""),
+                ))
+            except (KeyError, TypeError, re.error) as exc:
+                log.error("Werkstoffeintrag in %s fehlerhaft (%s): %r",
+                          f.name, exc, e)
+        # Regex-Validierung sofort, damit Tippfehler beim Start auffallen.
+    for m in out:
+        for pat in m.patterns:
+            re.compile(pat)
+    return out
+
+
+MATERIALS: list[Material] = _load_materials()
 
 METAL_HT = {"baustahl", "verguetung", "einsatz", "automaten", "nirosta",
             "nirosta_auto"}
@@ -261,14 +214,14 @@ def check_material_conflicts(ctx: CheckContext, hits: list[MaterialHit]) -> None
     if ctx.profile.enabled("MAT.COATING_CONFLICT"):
         zinc = _find_context(ctx, RE_ZINC)
         if zinc and primary.category in ("nirosta", "nirosta_auto", "alu",
-                                         "kupfer", "kunststoff"):
+                                         "kupfer", "kunststoff", "verbund"):
             snippet, bbox, page = zinc
             ctx.add("MAT.COATING_CONFLICT",
                     f"Widerspruch: Verzinkung („{snippet}“) auf {primary.name} "
                     f"ist fachlich unsinnig",
                     bbox=bbox, page=page)
         anod = _find_context(ctx, RE_ANODIZE)
-        if anod and primary.category != "alu":
+        if anod and primary.category not in ("alu", "titan"):
             snippet, bbox, page = anod
             ctx.add("MAT.COATING_CONFLICT",
                     f"Widerspruch: Eloxieren („{snippet}“) ist nur für "
@@ -308,20 +261,22 @@ def check_material_conflicts(ctx: CheckContext, hits: list[MaterialHit]) -> None
 # --------------------------------------------------------------------------
 # Normen-Katalog: zurückgezogene/ersetzte Normen
 # --------------------------------------------------------------------------
-OBSOLETE_NORMS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"ISO\s*1302\b", re.IGNORECASE),
-     "ISO 1302 wurde durch ISO 21920-1 ersetzt"),
-    (re.compile(r"DIN\s*6784\b", re.IGNORECASE),
-     "DIN 6784 wurde durch ISO 13715 ersetzt"),
-    (re.compile(r"DIN\s*7168\b", re.IGNORECASE),
-     "DIN 7168 ist zurückgezogen – Allgemeintoleranzen nach ISO 2768/ISO 22081"),
-    (re.compile(r"DIN\s*3141\b", re.IGNORECASE),
-     "DIN 3141 (Oberflächendreiecke) ist zurückgezogen – ISO 21920 verwenden"),
-    (re.compile(r"DIN\s*(?:ISO\s*)?1101\s*:\s*(?:19|200)\d", re.IGNORECASE),
-     "Veralteter Ausgabestand der ISO 1101 referenziert"),
-    (re.compile(r"DIN\s*8570\b", re.IGNORECASE),
-     "DIN 8570 wurde durch ISO 13920 ersetzt (Schweißkonstruktionen)"),
-]
+def _load_obsolete_norms() -> list[tuple[re.Pattern, str]]:
+    """Lädt alle norms*.yaml aus dem rules-Ordner (Wissenspakete)."""
+    out: list[tuple[re.Pattern, str]] = []
+    for f in sorted(RULES_DIR.glob("norms*.yaml")):
+        data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        for e in data.get("obsolete", []):
+            try:
+                out.append((re.compile(e["pattern"], re.IGNORECASE),
+                            e["message"]))
+            except (KeyError, re.error) as exc:
+                log.error("Normeintrag in %s fehlerhaft (%s): %r",
+                          f.name, exc, e)
+    return out
+
+
+OBSOLETE_NORMS: list[tuple[re.Pattern, str]] = _load_obsolete_norms()
 
 
 def check_obsolete_norms(ctx: CheckContext) -> None:

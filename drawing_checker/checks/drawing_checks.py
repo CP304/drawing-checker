@@ -34,8 +34,28 @@ RE_CT_GRADE = re.compile(r"\bCT\s*\d{1,2}\b")
 RE_PROJECTION = re.compile(
     r"(first\s+angle|third\s+angle|1st\s+angle|3rd\s+angle|projektionsmethode\s*[13]?"
     r"|projection\s+method)", re.IGNORECASE)
-RE_UNIT_MM = re.compile(r"(dimensions?\s+in\s+mm|maße\s+in\s+mm|angaben\s+in\s+mm"
-                        r"|unit\s*:?\s*mm|\bin\s+millimet)", re.IGNORECASE)
+RE_UNIT_MM = re.compile(r"(dimensions?\s+(?:are\s+)?in\s+mm|maße\s+in\s+mm"
+                        r"|angaben\s+in\s+mm|unit\s*s?\s*:?\s*(?:mm|inch)"
+                        r"|\bin\s+millimet|dimensions?\s+(?:are\s+)?in\s+inch)",
+                        re.IGNORECASE)
+# ASME-Welt: Toleranzblock im Schriftfeld + Y14.5 als Tolerierungsgrundsatz.
+RE_ASME_Y145 = re.compile(r"ASME\s*Y\s*14\.5", re.IGNORECASE)
+RE_ASME_TOLBLOCK = re.compile(
+    r"TOLERANCES?\s*[:\s].{0,200}?(?:DECIMAL|±|ANGULAR)"
+    r"|TOLERANCES?\s+WITHIN\s*[±]?\s*\d"   # "TOLERANCES WITHIN 0.1"
+    r"|\.X{1,3}\s*(?:±|=)"                 # Toleranzzeilen der Form .X± / .XX±
+    r"|X\.X{1,3}\s*(?:±|=)",
+    re.IGNORECASE | re.DOTALL)
+# Kantenzustand als Freitext (statt ISO 13715).
+RE_EDGE_TEXT = re.compile(
+    r"(break\s+all\s+(?:sharp\s+)?edges|remove\s+all\s+burrs"
+    r"|burrs?\s+and\s+sharp\s+edges|deburr|kanten\s+gebrochen"
+    r"|kanten\s+entgratet|gratfrei|scharfe\s+kanten\s+(?:brechen|gebrochen))",
+    re.IGNORECASE)
+# Oberflächenangabe als Freitext.
+RE_SURF_TEXT = re.compile(
+    r"(surface\s+(?:roughness|finish)|finish\s+all\s+faces"
+    r"|\d+\s*µ?in\b|microinch|\bRMS\b)", re.IGNORECASE)
 # GD&T-Symbole (Unicode) – Positions-/Form-/Lauf-Toleranzen.
 GDT_POSITIONAL = "⌖◎⌯∥⊥∠↗⌰"      # brauchen einen Bezug
 GDT_ANY = GDT_POSITIONAL + "⏤⏥○⌭⌒"
@@ -57,8 +77,10 @@ def _find(ctx: CheckContext, regex: re.Pattern) -> tuple[re.Match, BBox | None, 
     return None
 
 def _has_keyword(ctx: CheckContext, keywords: list[str]) -> bool:
-    text = ctx.pdf.full_text().lower()
-    return any(k.lower() in text for k in keywords)
+    # Whitespace normalisieren: CAD-Textlayer brechen Labels oft mitten im
+    # Wortpaar um ("DWG.\nNO.").
+    text = " ".join(ctx.pdf.full_text().lower().split())
+    return any(" ".join(k.lower().split()) in text for k in keywords)
 
 
 # ------------------------------------------------------------ Schriftfeld
@@ -90,9 +112,11 @@ def check_general_tolerances(ctx: CheckContext) -> None:
     if ctx.profile.enabled("GT.GENERAL_TOL"):
         hit2768 = _find(ctx, RE_ISO2768)
         hit22081 = _find(ctx, RE_ISO22081)
-        if not hit2768 and not hit22081:
+        asme_block = RE_ASME_TOLBLOCK.search(ctx.pdf.full_text())
+        if not hit2768 and not hit22081 and not asme_block:
             ctx.add("GT.GENERAL_TOL",
-                    "Keine Allgemeintoleranzangabe gefunden (ISO 2768 bzw. ISO 22081)",
+                    "Keine Allgemeintoleranzangabe gefunden (ISO 2768/ISO 22081 "
+                    "bzw. ASME-Toleranzblock)",
                     detail="Ohne Allgemeintoleranzen sind unbemaßte Toleranzen "
                            "für den Lieferanten nicht definiert.")
         elif hit2768 and not hit2768[0].group(1):
@@ -101,9 +125,11 @@ def check_general_tolerances(ctx: CheckContext) -> None:
                     "ISO 2768 ohne Toleranzklasse angegeben (z. B. „ISO 2768-mK“)",
                     severity=ctx.profile.severity("GT.GENERAL_TOL"),
                     bbox=bbox, page=page)
-    if ctx.profile.enabled("GT.PRINCIPLE") and not _find(ctx, RE_ISO8015):
+    if (ctx.profile.enabled("GT.PRINCIPLE")
+            and not _find(ctx, RE_ISO8015) and not _find(ctx, RE_ASME_Y145)):
         ctx.add("GT.PRINCIPLE",
-                "Tolerierungsgrundsatz nicht nachweisbar (ISO 8015)",
+                "Tolerierungsgrundsatz nicht nachweisbar (ISO 8015 bzw. "
+                "ASME Y14.5)",
                 detail="International uneinheitliche Default-Auslegung "
                        "(ISO vs. ASME) – Angabe empfohlen.")
 
@@ -127,19 +153,24 @@ def check_gps_datums(ctx: CheckContext) -> None:
 # ------------------------------------------------------------ Oberflächen
 def check_surfaces(ctx: CheckContext) -> None:
     if ctx.profile.enabled("SURF.ROUGHNESS"):
-        if not _find(ctx, RE_ROUGHNESS) and not _find(ctx, RE_SURF_NORM):
+        if (not _find(ctx, RE_ROUGHNESS) and not _find(ctx, RE_SURF_NORM)
+                and not _find(ctx, RE_SURF_TEXT)):
             ctx.add("SURF.ROUGHNESS",
-                    "Keine Oberflächenangabe nachweisbar (Ra/Rz bzw. ISO 21920/1302)",
+                    "Keine Oberflächenangabe nachweisbar (Ra/Rz, ISO 21920/1302 "
+                    "oder Freitext)",
                     detail="Mindestens eine Sammelangabe wird erwartet.")
-    if ctx.profile.enabled("SURF.EDGES") and not _find(ctx, RE_ISO13715):
+    if (ctx.profile.enabled("SURF.EDGES") and not _find(ctx, RE_ISO13715)
+            and not _find(ctx, RE_EDGE_TEXT)):
         ctx.add("SURF.EDGES",
-                "Kein Kantenzustand nachweisbar (ISO 13715)",
+                "Kein Kantenzustand nachweisbar (ISO 13715 oder Freitext "
+                "„Kanten gebrochen/entgratet“)",
                 detail="Werkstückkanten (Grat/Übergang) sind nicht definiert.")
 
 
 # ------------------------------------------------------------- Darstellung
 def check_view(ctx: CheckContext) -> None:
-    if ctx.profile.enabled("VIEW.PROJECTION") and not _find(ctx, RE_PROJECTION):
+    if (ctx.profile.enabled("VIEW.PROJECTION") and not _find(ctx, RE_PROJECTION)
+            and not _find(ctx, RE_ASME_Y145)):  # ASME => 3. Winkel per Default
         ctx.add("VIEW.PROJECTION",
                 "Projektionsmethode nicht nachweisbar (Symbol/Text 1./3. Winkel)",
                 detail="Für internationale Lieferanten kritisch (ISO- vs. "

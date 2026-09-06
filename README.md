@@ -96,3 +96,7 @@ den Geometrieabgleich ändern. Profile erben per `inherit` voneinander.
 5. Auslieferung: `pyinstaller --onefile --windowed -n DrawingChecker
    drawing_checker/app.py` (Windows; `rules/profiles.yaml` als Data-File
    mitgeben).
+
+Weiteres Wissen einpflegen (Normen, Werkstoffe, Regeln) ohne Code: siehe
+[KNOWHOW.md](KNOWHOW.md). Echte Kalibrier-Zeichnungen: siehe
+[mockdata/echt_quellen/SOURCES.md](mockdata/echt_quellen/SOURCES.md).
