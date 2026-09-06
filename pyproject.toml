@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drawing-checker"
+version = "0.1.0"
+description = "Prüfung technischer Zeichnungen (YMATDOCS-Pakete): Normen-Checks, Sprach-Check, STEP-Geometrieabgleich"
+requires-python = ">=3.11"
+dependencies = [
+    "pymupdf>=1.24",
+    "openpyxl>=3.1",
+    "pillow>=10",
+    "pandas>=2",
+    "PyYAML>=6",
+    "PySide6-Essentials>=6.6",
+]
+
+[project.optional-dependencies]
+# Exakte STEP-Analyse (Volumen, Zylinderflächen). Ohne OCP fällt das Tool auf
+# den eingebauten Punktwolken-Parser zurück (nur Bounding-Box).
+occ = ["cadquery-ocp>=7.7"]
+# OCR-Fallback für gescannte Zeichnungen ohne Textlayer.
+ocr = ["pytesseract>=0.3"]
+# Nur unter Windows nötig (SAP GUI Scripting via COM).
+sap = ["pywin32>=306; sys_platform == 'win32'"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+drawing-checker = "drawing_checker.app:main"
+
+[tool.setuptools.packages.find]
+include = ["drawing_checker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
