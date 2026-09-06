@@ -15,6 +15,23 @@ Konzept und Architektur: siehe [PLAN.md](PLAN.md).
 ```bash
 pip install -e .[occ,dev]          # occ = exakte STEP-Analyse (empfohlen)
 pip install -e .[sap]              # nur Windows: SAP GUI Scripting (pywin32)
+
+**Auf dem Anwenderrechner (Windows) genügt ein Doppelklick auf
+`Start.bat`.** Die Datei richtet beim ersten Start alles ein (virtuelle
+Umgebung, alle Pakete) und startet danach das Programm; bei jedem weiteren
+Start geht es sofort los. Sie prüft auch, ob Python und Tesseract vorhanden
+sind, und sagt in Klartext, was zu tun ist, wenn nicht.
+
+```bat
+Start.bat                        Programm starten (richtet bei Bedarf ein)
+Start.bat neu                    Umgebung verwerfen und neu aufbauen
+Start.bat pruefen                Selbsttest laufen lassen
+Start.bat --sap-import-vbs x.vbs Optionen an das Programm durchreichen
+```
+
+Zusatzpakete werden einzeln installiert: fällt eines aus (z. B. das große
+3D-Paket hinter einem Proxy), läuft der Rest trotzdem, und die Einschränkung
+wird benannt. Meldungen der Einrichtung landen in `logs/einrichtung.log`.
 pip install -e .[ocr]              # optional: OCR für gescannte Zeichnungen
                                    # (zusätzlich Tesseract-Binary installieren)
 ```

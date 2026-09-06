@@ -9,3 +9,5 @@ Ergebnisse/
 *_geprüft.xlsx
 *.log
 regeln/
+.venv/
+logs/

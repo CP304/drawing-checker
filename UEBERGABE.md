@@ -43,6 +43,15 @@ ein fehlgeschlagener `--sap-test` schreibt automatisch eine Diagnose.
 
 ## 3. Umgebung einrichten (neuer Rechner)
 
+**Windows-Anwenderrechner:** Doppelklick auf `Start.bat` – richtet alles
+ein und startet. `Start.bat neu` baut die Umgebung neu auf, `Start.bat
+pruefen` lässt die Testsuite laufen. Das Skript ist bewusst ohne Umlaute
+geschrieben (Codepage) und wird von `tests/test_startskript.py` gegen die
+klassischen Batch-Fallen geprüft (Blockklammern, Sprungziele, verzögerte
+Expansion) – dort weitermachen, wenn es erweitert wird.
+
+**Entwicklungsrechner:**
+
 ```bash
 pip install -e .[occ,ocr,dev]        # OCP für STEP, pytesseract für OCR
 python -m pytest tests/ -q           # muss vollständig grün sein

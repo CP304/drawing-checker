@@ -17,8 +17,11 @@ Ihnen, wo Sie hinsehen müssen.
 1. **Excel vorbereiten.** Eine Spalte mit den Materialnummern, eine
    Überschriftenzeile. Sonst nichts. Die Datei darf ruhig weitere Spalten
    enthalten.
-2. **Programm starten** (Verknüpfung „Drawing Checker"). SAP muss offen und
-   angemeldet sein; das Programm nutzt Ihre bestehende Anmeldung.
+2. **Programm starten**: Doppelklick auf **`Start.bat`** im
+   Programmordner (oder auf die Verknüpfung „Drawing Checker" auf dem
+   Desktop). Beim allerersten Start richtet sich das Programm selbst ein –
+   das dauert einige Minuten, das Fenster dabei offen lassen. SAP muss
+   offen und angemeldet sein; das Programm nutzt Ihre bestehende Anmeldung.
 3. **Datei wählen und auf die Spalte zeigen**, in der die Materialnummern
    stehen. Das Programm zeigt eine Vorschau der erkannten Nummern.
 4. **Starten.** Der Lauf arbeitet die Liste selbstständig ab. Sie können
@@ -71,6 +74,21 @@ Mängeln und eine `findings.csv` für eigene Auswertungen.
 - **Die Ergebnisdatei lässt sich nicht schreiben.** Sie ist in Excel
   geöffnet. Das Programm weicht auf eine Datei mit dem Zusatz `_neu` aus;
   besser: Excel schließen, solange der Lauf läuft.
+
+## Wenn der Start nicht klappt
+
+Das schwarze Fenster bleibt bei Problemen offen und nennt die Ursache im
+Klartext – meist eines von dreien:
+
+- **„Kein Python ab Version 3.11 gefunden"**: Python fehlt auf dem Rechner.
+  Die Meldung nennt den Downloadlink; im Firmenumfeld über das
+  Softwarecenter anfordern.
+- **„Die Installation ist fehlgeschlagen"**: meist kein Zugang zum
+  Paketserver (Proxy). Bitte die Datei `logs\einrichtung.log` an die
+  Systembetreuung geben.
+- **„Die vorhandene Umgebung ist unbrauchbar"**: passiert, wenn der Ordner
+  verschoben oder kopiert wurde. Das Programm baut sie selbst neu auf;
+  erzwingen lässt sich das mit `Start.bat neu`.
 
 ## Was das Programm nicht kann
 
