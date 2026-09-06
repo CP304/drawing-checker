@@ -56,7 +56,7 @@ WENN ETWAS KLEMMT
 Das schwarze Fenster bleibt bei Fehlern offen und nennt die Ursache
 im Klartext. Die drei haeufigsten:
 
- * "Kein Python ab Version 3.11 gefunden"
+ * "Kein Python ab Version 3.10 gefunden"
    -> Python fehlt. Ueber das Firmen-Softwarecenter anfordern oder
       von python.org installieren ("Add python.exe to PATH" ankreuzen).
 

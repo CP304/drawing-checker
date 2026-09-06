@@ -104,6 +104,21 @@ def _analyze_occ(path: Path) -> StepGeometry:
         gc.collect()
 
 
+def _box_bounds(box) -> tuple:
+    """Eckpunkte einer Bnd_Box - fassungsunabhängig.
+
+    Die OpenCascade-Bindung heißt je nach Fassung anders: OCP 8.x kennt
+    `GetXMin()`, das ältere OCP 7.9 (letzte Fassung für Python 3.10) nur
+    `CornerMin()`/`CornerMax()`. Beides wird bedient, sonst läuft das
+    Werkzeug je nach Python-Fassung des Zielrechners nicht.
+    """
+    if hasattr(box, "CornerMin"):
+        a, b = box.CornerMin(), box.CornerMax()
+        return (a.X(), a.Y(), a.Z(), b.X(), b.Y(), b.Z())
+    return (box.GetXMin(), box.GetYMin(), box.GetZMin(),
+            box.GetXMax(), box.GetYMax(), box.GetZMax())
+
+
 def _measure(shape) -> StepGeometry:
     """Vermisst die eingelesene Gestalt (Hüllmaße, Volumen, Zylinder)."""
     from OCP.Bnd import Bnd_OBB
@@ -127,8 +142,7 @@ def _measure(shape) -> StepGeometry:
         box = Bnd_Box()
         BRepBndLib.Add_s(sexp.Current(), box, True)
         if not box.IsVoid():
-            solid_boxes.append((box.GetXMin(), box.GetYMin(), box.GetZMin(),
-                                box.GetXMax(), box.GetYMax(), box.GetZMax()))
+            solid_boxes.append(_box_bounds(box))
         sexp.Next()
     solids = len(solid_boxes)
     disjoint = _count_disjoint_groups(solid_boxes)

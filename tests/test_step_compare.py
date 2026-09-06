@@ -62,3 +62,56 @@ def test_guss_profile_is_more_tolerant():
     dims = [dv(280), dv(180), dv(120)]
     assert compare_step_to_drawing(geo, dims, guss).verdict == "passt"
     assert compare_step_to_drawing(geo, dims, default).verdict != "passt"
+
+
+# --------------------------------------------- OCP-Fassungsunabhaengigkeit
+def test_box_bounds_kommt_mit_beiden_ocp_fassungen_klar():
+    """OCP 7.9 (Python 3.10) und OCP 8.x benennen die Bnd_Box anders.
+
+    7.9 kennt nur CornerMin()/CornerMax(), 8.x zusätzlich GetXMin().
+    Beides muss dieselben Werte liefern, sonst läuft das Werkzeug je nach
+    Python-Fassung des Zielrechners nicht.
+    """
+    from drawing_checker.checks.step_compare import _box_bounds
+
+    class _Punkt:
+        def __init__(self, x, y, z):
+            self._w = (x, y, z)
+
+        def X(self):
+            return self._w[0]
+
+        def Y(self):
+            return self._w[1]
+
+        def Z(self):
+            return self._w[2]
+
+    class _Alt:            # OCP 7.9
+        def CornerMin(self):
+            return _Punkt(1, 2, 3)
+
+        def CornerMax(self):
+            return _Punkt(4, 5, 6)
+
+    class _Neu:            # OCP 8.x ohne CornerMin
+        def GetXMin(self):
+            return 1
+
+        def GetYMin(self):
+            return 2
+
+        def GetZMin(self):
+            return 3
+
+        def GetXMax(self):
+            return 4
+
+        def GetYMax(self):
+            return 5
+
+        def GetZMax(self):
+            return 6
+
+    assert _box_bounds(_Alt()) == (1, 2, 3, 4, 5, 6)
+    assert _box_bounds(_Neu()) == (1, 2, 3, 4, 5, 6)

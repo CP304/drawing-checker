@@ -277,8 +277,8 @@ if defined T exit /b 0
 exit /b 0
 
 :pruefe_python
-rem Prueft, ob der uebergebene Aufruf ein Python ab 3.11 startet.
-%~1 -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
+rem Prueft, ob der uebergebene Aufruf ein Python ab 3.10 startet.
+%~1 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
 exit /b %ERRORLEVEL%
 
 :fehlerhinweis
@@ -313,7 +313,7 @@ endlocal
 exit /b 1
 
 :kein_python
-echo  Es wurde kein Python ab Version 3.11 gefunden.
+echo  Es wurde kein Python ab Version 3.10 gefunden.
 echo.
 echo  So beheben Sie das:
 echo    1. Python von https://www.python.org/downloads/windows/ laden

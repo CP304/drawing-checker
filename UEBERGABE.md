@@ -152,8 +152,14 @@ Messung danach wiederholen.
 
 ## 8. Stolpersteine, die schon Zeit gekostet haben
 
-- **OCP-Namen**: `TopoDS.Face` (nicht `Face_s`), `Bnd_Box.GetXMin()` statt
-  `Get()`.
+- **OCP heißt je nach Python-Fassung anders.** Python 3.10 bekommt
+  cadquery-ocp 7.9 (die letzte dafür gebaute), 3.11+ bekommt 8.x. In 7.9
+  fehlt `Bnd_Box.GetXMin()`; deshalb liest `step_compare._box_bounds()`
+  über `CornerMin()/CornerMax()`. Wer OCP-Aufrufe ergänzt, prüft sie
+  gegen BEIDE Fassungen – sonst läuft das Werkzeug auf dem Zielrechner
+  nicht, obwohl hier alles grün ist.
+- **OCP-Namen**: `TopoDS.Face` funktioniert in beiden Fassungen
+  (`Face_s` gibt es nur in 7.9).
 - **OpenCascade und PyMuPDF geben Speicher nicht von selbst frei** – siehe
   `core/housekeeping.release_memory()`.
 - **Mockzeichnungen taugen nicht zur Kalibrierung.** Alles, was auf

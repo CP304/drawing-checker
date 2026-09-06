@@ -80,7 +80,7 @@ Mängeln und eine `findings.csv` für eigene Auswertungen.
 Das schwarze Fenster bleibt bei Problemen offen und nennt die Ursache im
 Klartext – meist eines von dreien:
 
-- **„Kein Python ab Version 3.11 gefunden"**: Python fehlt auf dem Rechner.
+- **„Kein Python ab Version 3.10 gefunden"**: Python fehlt auf dem Rechner.
   Die Meldung nennt den Downloadlink; im Firmenumfeld über das
   Softwarecenter anfordern.
 - **„Die Installation ist fehlgeschlagen"**: meist kein Zugang zum

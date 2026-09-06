@@ -6,7 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "drawing-checker"
 version = "0.1.0"
 description = "Prüfung technischer Zeichnungen (YMATDOCS-Pakete): Normen-Checks, Sprach-Check, STEP-Geometrieabgleich"
-requires-python = ">=3.11"
+# 3.10 reicht: geprüft mit 3.10, 3.11 und 3.13. Viele
+# Firmen-Images liefern noch 3.10 – eine unnötig hohe Schranke
+# hätte die Inbetriebnahme blockiert.
+requires-python = ">=3.10"
 dependencies = [
     "pymupdf>=1.24",
     "openpyxl>=3.1",
