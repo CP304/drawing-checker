@@ -72,6 +72,10 @@ liegen neben den mitgelieferten und überstehen Updates des Tools.
 - **Maßketten** werden nur gemeldet, wenn die Maße auf einer gemeinsamen
   Maßlinie nebeneinander liegen. Ohne diese räumliche Prüfung liefert die
   reine Zahlensuche auf maßreichen Zeichnungen Zufallstreffer.
+- **Maßstabsprüfungen** (`SCALE.MISMATCH`, `GEO.VIEW_SIZE`) sind
+  ausgeliefert deaktiviert, weil Blattmaßstab und Ansichtsmaßstab in vielen
+  CAD-Systemen auseinanderfallen. Die gemessene Ansichtsgröße erscheint
+  trotzdem in den Vergleichswerten.
 - **Masseabgleich** setzt eine Gewichtsangabe im Schriftfeld und eine
   bekannte Werkstoffdichte voraus; Rohteilgewichte weichen bei Guss- und
   Schweißteilen systematisch ab (Toleranz je Profil einstellbar).

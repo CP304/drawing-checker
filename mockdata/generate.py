@@ -216,7 +216,7 @@ def draw_weld_bracket(path: Path):
 
     # Vorderansicht (Grundplatte 320x25, Steg 180 hoch, Rippe)
     ox, oy = 45, 175  # Ursprung unten links der Ansicht (in mm auf dem Blatt)
-    sc = 0.42
+    sc = 0.4          # entspricht exakt dem Schriftfeld-Maßstab 1:2,5
     def X(v): return ox + v * sc
     def Y(v): return oy - v * sc
     # Grundplatte
@@ -292,7 +292,7 @@ def draw_cast_housing(path: Path, drawno="DRW-10473216-A"):
     s.frame()
 
     ox, oy = 40, 190
-    sc = 0.42
+    sc = 0.4          # entspricht exakt dem Schriftfeld-Maßstab 1:2,5
     def X(v): return ox + v * sc
     def Y(v): return oy - v * sc
     # Gehäusekörper 280 x 180 mit Flanschfüßen
@@ -354,7 +354,7 @@ def draw_shaft(path: Path):
     s.frame()
 
     ox, oy = 50, 140
-    sc = 0.75
+    sc = 0.5          # entspricht exakt dem Schriftfeld-Maßstab 1:2
     def X(v): return ox + v * sc
     def Y(v): return oy - v * sc
     # Wellenkontur (halbe Darstellung gespiegelt): Absätze

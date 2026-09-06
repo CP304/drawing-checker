@@ -22,6 +22,8 @@ profiles:
       hole_dia_tol: 0.6
       thread_core_tol: 0.8
       unit_ratio_tol: 0.06       # Toleranz beim Zoll/mm-Verhältnis
+      scale_tol: 0.15            # Ansicht vs. Maßtext (Maßstabsprüfung)
+      view_model_tol: 0.2        # Ansicht vs. Modell-Bounding-Box
       # Bemaßung / Fertigung
       chain_epsilon: 0.05        # Toleranz beim Maßketten-Summenvergleich (mm)
       chain_line_tol: 8.0        # max. Versatz quer zur Maßlinie (PDF-Punkte)
@@ -124,6 +126,14 @@ profiles:
       GEO.ASSEMBLY:        {enabled: true, severity: error}   # Baugruppe statt Einzelteil
       GEO.ASSEMBLY_MINOR:  {enabled: true, severity: warning}
       GEO.NOT_FUSED:       {enabled: true, severity: info}     # Körper nicht verschmolzen
+      # Maßstabsbasierte Prüfungen: standardmäßig AUS.
+      # Viele CAD-Systeme führen im Schriftfeld den Blattmaßstab, einzelne
+      # Ansichten haben aber eigene Maßstäbe (Detail-/Schnittansichten).
+      # Wo die Zeichnungsnorm einen einheitlichen Maßstab vorschreibt, sind
+      # beide Regeln wertvoll – dann hier einschalten. Die gemessene
+      # Ansichtsgröße erscheint unabhängig davon in den Vergleichswerten.
+      GEO.VIEW_SIZE:       {enabled: false, severity: warning} # gemessene Ansicht vs. Modell
+      SCALE.MISMATCH:      {enabled: false, severity: warning} # Zeichnung nicht maßstäblich
       # Ausbaustufe: Konturprojektion (STEP-Silhouetten vs. PDF-Ansichten).
       # Schärft das Maß-Urteil (bestätigt "unsicher" bzw. stuft "passt" bei
       # klarem Widerspruch herab). Bei Bedarf hier abschaltbar.

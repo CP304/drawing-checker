@@ -106,6 +106,18 @@ Der Kontur-Score schärft das Urteil konservativ: Er bestätigt ein „unsicher�
 ein „passt nicht“ des Maßabgleichs bleibt immer bestehen. Abschaltbar über
 Regel `GEO.CONTOUR` in `profiles.yaml`; benötigt das OCC-Backend.
 
+## Maßstabsbasierte Messung
+
+Aus dem Schriftfeld-Maßstab und der gemessenen Ansichtsgröße errechnet der
+Checker die Bauteilgröße **ohne jede Maßtext-Auswertung** – auf den
+Mockzeichnungen exakt (420 × 70 mm für die Welle). Der Messwert steht in den
+Excel-Vergleichswerten. Die daraus abgeleiteten Regeln `SCALE.MISMATCH`
+(Zeichnung nicht maßstäblich) und `GEO.VIEW_SIZE` (Ansicht größer als das
+Modell) werden **deaktiviert ausgeliefert**: Viele CAD-Systeme führen im
+Schriftfeld nur den Blattmaßstab, während Detail- und Schnittansichten eigene
+Maßstäbe haben. Wo eine einheitliche Zeichnungsnorm gilt, lohnt das
+Einschalten in `profiles.yaml`.
+
 ## GD&T auf realen CAD-Zeichnungen
 
 Toleranzrahmen werden von CAD-Systemen meist als **Vektorgrafik** gezeichnet:

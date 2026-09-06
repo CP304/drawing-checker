@@ -273,6 +273,7 @@ class Orchestrator:
             result.processes = detect_processes(pdf)
 
             dims = []
+            scale_note = ""
             if has_text:
                 run_drawing_checks(ctx)
                 check_language(ctx)
@@ -286,7 +287,13 @@ class Orchestrator:
                 run_gps_checks(ctx, dims)
                 run_dimension_checks(ctx, dims)
                 run_process_checks(ctx, dims)
+                from ..checks.scale_checks import check_scale_consistency
+
+                scale_note = check_scale_consistency(ctx, dims)
             result.step_summary = check_step(ctx, dims)
+            if has_text and scale_note:
+                result.step_summary = " | ".join(
+                    x for x in (result.step_summary, scale_note) if x)
 
             result.findings = ctx.findings
             shot = self.run_dir / f"{pkg._safe_name(material)}.png"

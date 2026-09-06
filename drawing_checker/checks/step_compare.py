@@ -407,6 +407,9 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
     extra = [check_mass(ctx, geometry), check_hole_pattern(ctx, geometry, dims)]
     check_threads(ctx, geometry, dims)
     check_assembly_vs_part(ctx, geometry)
+    from .scale_checks import check_view_vs_model
+
+    check_view_vs_model(ctx, geometry, dims)
     if unit_error:
         # Bei falscher Einheit sind Hüllmaß-Abweichungen die Folge, nicht die
         # Ursache – den Maß-Mismatch dann nicht zusätzlich als K.O. melden.

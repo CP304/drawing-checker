@@ -112,3 +112,49 @@ def _to_kg(value: str, unit: str) -> float | None:
     kg = v * _TO_KG[unit.lower()]
     # Plausibilitätsfenster: 1 g bis 50 t
     return kg if 0.001 <= kg <= 50000 else None
+
+
+# --------------------------------------------------------------------------
+# Maßstab aus dem Schriftfeld
+# --------------------------------------------------------------------------
+_SC_NUM = r"(\d{1,3}(?:[.,]\d{1,2})?)"
+RE_SCALE = re.compile(
+    rf"(?:ma[ßs]stab|scale)\s*:?\s*{_SC_NUM}\s*[:/]\s*{_SC_NUM}",
+    re.IGNORECASE)
+_PT_PER_MM = 72.0 / 25.4
+
+
+# Normübliche Maßstäbe nach ISO 5455 (plus die gängigen Zwischenwerte).
+COMMON_SCALES = {
+    0.02, 0.05, 0.1, 0.2, 0.5,          # Vergrößerungen 50:1 … 2:1
+    1.0,
+    2.0, 2.5, 4.0, 5.0, 10.0, 20.0, 25.0, 50.0, 100.0, 200.0,
+}
+
+
+def extract_scale(pdf) -> float | None:
+    """Maßstab als Faktor Bauteil/Zeichnung.
+
+    „1:2" (verkleinert) -> 2.0, „2:1" (vergrößert) -> 0.5, „1:1" -> 1.0.
+    Ausgewertet wird nur die BESCHRIFTETE Angabe („Maßstab 1:2", „SCALE 1:2")
+    und nur, wenn sie einem normüblichen Maßstab entspricht – freistehende
+    „x:y"-Muster auf einer Zeichnung sind häufiger Blatt-, Zeit- oder
+    Verhältnisangaben als Maßstäbe.
+    """
+    for a, b in RE_SCALE.findall(pdf.full_text()):
+        try:
+            num = float(a.replace(",", "."))
+            den = float(b.replace(",", "."))
+        except ValueError:
+            continue
+        if num <= 0 or den <= 0:
+            continue
+        factor = den / num
+        if any(abs(factor - c) < 0.01 for c in COMMON_SCALES):
+            return factor
+    return None
+
+
+def mm_per_point(scale_factor: float) -> float:
+    """Bauteil-Millimeter je PDF-Punkt bei gegebenem Maßstab."""
+    return scale_factor / _PT_PER_MM
