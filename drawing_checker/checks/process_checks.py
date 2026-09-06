@@ -11,6 +11,9 @@ ISO 9692, VDG-Merkblatt K 200, Blech-Konstruktionsrichtlinien).
   CAST.NO_RMA       Gussteil mit Bearbeitung, aber ohne Bearbeitungszugabe
   SHEET.NO_THICK    Blech-/Biegeteil ohne Blechdickenangabe
   SHEET.NO_RADIUS   Abkantung ohne Biegeradius
+  HT.NO_HARDNESS    Wärmebehandlung ohne Härtewert (DIN 6773)
+  HT.NO_DEPTH       Randschichthärten ohne Einhärtetiefe (Eht/CHD/NHD)
+  HT.HARDNESS_LIMIT Härteforderung über dem, was der Werkstoff hergibt
 """
 from __future__ import annotations
 
@@ -165,3 +168,86 @@ def run_process_checks(ctx: CheckContext, dims: list[DimValue]) -> None:
     check_weld_details(ctx)
     check_cast_details(ctx)
     check_sheet_details(ctx, dims)
+    check_heat_treatment(ctx)
+
+
+# --- Wärmebehandlung (DIN 6773) -------------------------------------------
+RE_HARDNESS_HRC = re.compile(r"(\d{2}(?:[.,]\d)?)\s*[-–+±]?\s*(?:\d{1,2})?\s*HRC",
+                             re.IGNORECASE)
+RE_HARDNESS_HV = re.compile(r"(\d{3,4})\s*HV\s*\d*", re.IGNORECASE)
+RE_HARDNESS_ANY = re.compile(r"\bHRC\b|\bHV\s*\d|\bHB\b|härte(?!n)|hardness",
+                             re.IGNORECASE)
+RE_CASE_DEPTH = re.compile(
+    r"\bEht\b|\bCHD\b|\bNHD\b|\bSHD\b|einhärt(?:e|ungs)tiefe|nitrierhärtetiefe"
+    r"|case\s*depth|einsatztiefe|\bRht\b", re.IGNORECASE)
+RE_SURFACE_HT = re.compile(
+    r"einsatzgehärtet|einsatzhärten|aufgekohlt|carburi[sz]|nitrier|nitrid"
+    r"|randschichtgehärtet|induktivgehärtet|induction\s*harden|case\s*harden"
+    r"|flammgehärtet", re.IGNORECASE)
+# Genormter Lieferzustand im Werkstoffnamen (+QT, +N, +A …): Wärmebehandlung
+# und Festigkeit sind damit normativ festgelegt (z. B. EN 10083) – eine
+# separate Härteangabe ist dann NICHT erforderlich.
+RE_DELIVERY_STATE = re.compile(
+    r"\+\s*(?:QT|AT|NT|AR|N|A|C|M|P|SR|U)\b")
+RE_STRENGTH = re.compile(
+    r"\b\d{3,4}\s*(?:N/mm²|N/mm2|MPa)\b|\bRm\s*[≥>=]|\bRe(?:H|L)?\s*[≥>=]",
+    re.IGNORECASE)
+RE_HT_PROCESS = re.compile(
+    r"gehärtet|härten|vergütet|vergüten|hardened|quenched|tempered"
+    r"|einsatzgehärtet|nitriert", re.IGNORECASE)
+
+
+def check_heat_treatment(ctx: CheckContext) -> None:
+    """Härteangaben auf Vollständigkeit und Plausibilität prüfen (DIN 6773)."""
+    from .materials import find_materials
+
+    ht = _find(ctx, RE_HT_PROCESS)
+    if not ht:
+        return
+    _m, bbox, page = ht
+    text = ctx.pdf.full_text()
+
+    # 1) Härteverfahren ohne Härtewert
+    if (ctx.profile.enabled("HT.NO_HARDNESS")
+            and not RE_HARDNESS_ANY.search(text)
+            and not RE_DELIVERY_STATE.search(text)
+            and not RE_STRENGTH.search(text)):
+        ctx.add("HT.NO_HARDNESS",
+                "Wärmebehandlung angegeben, aber kein Härtewert",
+                bbox=bbox, page=page,
+                detail="Nach DIN 6773 gehören Oberflächenhärte (HRC/HV) und "
+                       "Toleranz zur Angabe – sonst ist das Ergebnis nicht "
+                       "prüfbar.")
+
+    # 2) Randschichtverfahren ohne Einhärtetiefe
+    surface = _find(ctx, RE_SURFACE_HT)
+    if (ctx.profile.enabled("HT.NO_DEPTH") and surface
+            and not RE_CASE_DEPTH.search(text)):
+        _sm, sbbox, spage = surface
+        ctx.add("HT.NO_DEPTH",
+                "Randschichthärten ohne Angabe der Einhärtetiefe",
+                bbox=sbbox, page=spage,
+                detail="Einhärtungstiefe (Eht/CHD bzw. NHD beim Nitrieren) "
+                       "mit Grenzhärte angeben – ohne sie ist die Randschicht "
+                       "nicht spezifiziert (DIN 6773 / ISO 15787).")
+
+    # 3) Härtewert über dem, was der Werkstoff hergibt
+    if not ctx.profile.enabled("HT.HARDNESS_LIMIT"):
+        return
+    hits = find_materials(ctx)
+    material = next((h.material for h in hits if h.material.max_hrc), None)
+    if material is None:
+        return
+    values = [float(v.replace(",", ".")) for v in RE_HARDNESS_HRC.findall(text)]
+    if not values:
+        return
+    reserve = float(ctx.profile.params.get("hardness_reserve_hrc", 2))
+    highest = max(values)
+    if highest > material.max_hrc + reserve:
+        ctx.add("HT.HARDNESS_LIMIT",
+                f"Härteforderung {highest:g} HRC über dem für {material.name} "
+                f"erreichbaren Wert (ca. {material.max_hrc:g} HRC)",
+                bbox=bbox, page=page,
+                detail="Entweder ist der Werkstoff für die geforderte Härte "
+                       "ungeeignet oder die Härteangabe ist zu hoch – "
+                       "Werkstoff oder Anforderung anpassen.")

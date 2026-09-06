@@ -24,6 +24,7 @@ profiles:
       unit_ratio_tol: 0.06       # Toleranz beim Zoll/mm-Verhältnis
       scale_tol: 0.15            # Ansicht vs. Maßtext (Maßstabsprüfung)
       view_model_tol: 0.2        # Ansicht vs. Modell-Bounding-Box
+      hardness_reserve_hrc: 2    # Zuschlag auf die Werkstoff-Härtegrenze
       # Bemaßung / Fertigung
       chain_epsilon: 0.05        # Toleranz beim Maßketten-Summenvergleich (mm)
       chain_line_tol: 8.0        # max. Versatz quer zur Maßlinie (PDF-Punkte)
@@ -105,6 +106,9 @@ profiles:
       CAST.NO_RMA:     {enabled: true, severity: warning}  # Guss ohne Bearbeitungszugabe
       SHEET.NO_THICK:  {enabled: true, severity: error}    # Blechteil ohne Blechdicke
       SHEET.NO_RADIUS: {enabled: true, severity: warning}  # Abkantung ohne Biegeradius
+      HT.NO_HARDNESS:  {enabled: true, severity: warning}  # Wärmebehandlung ohne Härtewert
+      HT.NO_DEPTH:     {enabled: true, severity: warning}  # Randschichthärten ohne Eht/CHD
+      HT.HARDNESS_LIMIT: {enabled: true, severity: error}  # Härte über Werkstoffgrenze
       # --- Konsistenz ----------------------------------------------------------
       CONS.MATNO:   {enabled: true, severity: warning}    # Materialnummer auf Zeichnung
       # --- Paket / Geometrie ---------------------------------------------------

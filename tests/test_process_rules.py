@@ -139,3 +139,66 @@ def test_turned_part_no_process_findings(tmp_path):
         "Werkstoff 42CrMo4 +QT", "Antriebswelle, gedreht und geschliffen",
         "⌀40 k6, Ra 0,8, Allgemeintoleranzen ISO 2768-fH"]))
     assert not c, f"unerwartete Findings: {list(c)}"
+
+
+# ------------------------------------------------------ Wärmebehandlung
+def test_heat_treatment_without_hardness_warns(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff 42CrMo4", "vergütet"]))
+    assert c["HT.NO_HARDNESS"].severity == Severity.WARNING
+
+
+def test_heat_treatment_with_hardness_is_fine(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff 42CrMo4",
+                                  "vergütet auf 30-34 HRC"]))
+    assert "HT.NO_HARDNESS" not in c
+
+
+def test_case_hardening_without_depth_warns(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff 16MnCr5",
+                                  "einsatzgehärtet 60 HRC"]))
+    assert c["HT.NO_DEPTH"].severity == Severity.WARNING
+
+
+def test_case_hardening_with_depth_is_fine(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff 16MnCr5",
+                                  "einsatzgehärtet 60 HRC, Eht 0,8 mm"]))
+    assert "HT.NO_DEPTH" not in c
+
+
+def test_nitriding_with_nhd_is_fine(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff 31CrMoV9",
+                                  "nitriert 700 HV1, NHD 0,4 mm"]))
+    assert "HT.NO_DEPTH" not in c
+
+
+def test_hardness_above_material_limit_is_error(tmp_path):
+    """C45 erreicht rund 58 HRC – 64 HRC sind nicht darstellbar."""
+    c = codes(make_ctx(tmp_path, ["Werkstoff C45",
+                                  "randschichtgehärtet 64 HRC, Rht 1,5 mm"]))
+    assert c["HT.HARDNESS_LIMIT"].severity == Severity.ERROR
+    assert "C45" in c["HT.HARDNESS_LIMIT"].text
+
+
+def test_hardness_within_limit_is_fine(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff 100Cr6",
+                                  "durchgehärtet 62 HRC"]))
+    assert "HT.HARDNESS_LIMIT" not in c
+
+
+def test_hardness_limit_needs_known_material(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff Sonderlegierung XY",
+                                  "gehärtet 70 HRC"]))
+    assert "HT.HARDNESS_LIMIT" not in c
+
+
+def test_normed_delivery_state_needs_no_hardness(tmp_path):
+    """Bei +QT/+N ist der Zustand normativ definiert (EN 10083)."""
+    c = codes(make_ctx(tmp_path, ["Werkstoff 42CrMo4 +QT",
+                                  "vergütet / quenched and tempered"]))
+    assert "HT.NO_HARDNESS" not in c
+
+
+def test_strength_specification_replaces_hardness(tmp_path):
+    c = codes(make_ctx(tmp_path, ["Werkstoff C45", "vergütet",
+                                  "Rm ≥ 700 N/mm²"]))
+    assert "HT.NO_HARDNESS" not in c
