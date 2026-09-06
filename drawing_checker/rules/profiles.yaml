@@ -44,6 +44,16 @@ profiles:
       # --- Kontextregeln Schweißen / Guss -------------------------------------
       WELD.QUALITY: {enabled: true, severity: error}      # Schweißkontext ohne ISO 5817
       CAST.TOL:     {enabled: true, severity: error}      # Gusskontext ohne ISO 8062
+      # --- Werkstoff und fachliche Widersprüche -------------------------------
+      MAT.MISSING:          {enabled: true, severity: error}   # kein Werkstoff angegeben
+      MAT.UNKNOWN:          {enabled: true, severity: warning} # Label da, Bezeichnung nicht erkannt
+      MAT.WELD_CONFLICT:    {enabled: true, severity: error}   # nicht schweißgeeignet + Schweißangaben
+      MAT.WELD_LIMITED:     {enabled: true, severity: warning} # nur bedingt schweißgeeignet
+      MAT.HT_CONFLICT:      {enabled: true, severity: error}   # Wärmebehandlung passt nicht zum Werkstoff
+      MAT.COATING_CONFLICT: {enabled: true, severity: error}   # Verzinken/Eloxieren fachlich unsinnig
+      MAT.CAST_CONFLICT:    {enabled: true, severity: warning} # Gusskontext ohne Gusswerkstoff
+      NORM.MATERIAL_MISMATCH: {enabled: true, severity: error} # z. B. ISO 5817 bei Aluminium
+      NORM.OBSOLETE:        {enabled: true, severity: warning} # zurückgezogene/ersetzte Norm
       # --- Konsistenz ----------------------------------------------------------
       CONS.MATNO:   {enabled: true, severity: warning}    # Materialnummer auf Zeichnung
       # --- Paket / Geometrie ---------------------------------------------------

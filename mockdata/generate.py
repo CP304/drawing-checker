@@ -206,6 +206,8 @@ class Sheet:
 # ===================================================================== Teile
 def draw_weld_bracket(path: Path):
     """Schweißkonsole: Grundplatte + Steg + Rippe. Seeded Fehler:
+    Werkstoff 1.4305 (Automaten-Edelstahl, NICHT schweißgeeignet) trotz
+    Schweißsymbolik + "feuerverzinkt" auf Edelstahl (fachliche Widersprüche),
     deutsche Anmerkungen, ISO 5817 ohne Bewertungsgruppe, ISO 13715 fehlt."""
     s = Sheet()
     s.frame()
@@ -275,7 +277,7 @@ def draw_weld_bracket(path: Path):
     ])
     s.title_block(
         drawno="DRW-10473215-B", title_de="Schweißkonsole",
-        title_en="Welded bracket", material="S355J2+N",
+        title_en="Welded bracket", material="1.4305",
         weight="18,4 kg", scale="1:2.5")
     s.text(15, 15, "10473215", size=9, bold=True)
     s.save(path)

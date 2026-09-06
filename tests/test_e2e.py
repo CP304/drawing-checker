@@ -52,6 +52,10 @@ def test_weld_bracket_language_and_weld_findings(run):
     assert "LANG.GERMAN" in codes
     assert "WELD.QUALITY" in codes
     assert "GEO.MISMATCH" not in codes          # STEP passt
+    # Fachliche Widersprüche: 1.4305 (nicht schweißgeeignet) + Schweißsymbolik,
+    # "feuerverzinkt" auf Edelstahl
+    assert "MAT.WELD_CONFLICT" in codes
+    assert "MAT.COATING_CONFLICT" in codes
     # Sprach-Findings tragen Positionen für die Annotation
     assert any(f.bbox for f in r.findings if f.code == "LANG.GERMAN")
 

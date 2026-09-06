@@ -58,7 +58,7 @@ Ergebnisse:
 
 | Materialnummer | Inhalt | Erwartung |
 |---|---|---|
-| 10473215 | Schweißkonsole | Fehler: deutsche Anmerkungen, ISO 5817 ohne Gruppe, kein Kantenzustand; STEP passt |
+| 10473215 | Schweißkonsole | Fehler: Werkstoff 1.4305 trotz Schweißnähten (fachlicher Widerspruch), „feuerverzinkt“ auf Edelstahl, deutsche Anmerkungen, ISO 5817 ohne Gruppe; STEP passt |
 | 10473216 | Gussgehäuse | K.O.: STEP ist falsche Konfiguration; zudem keine Allgemeintoleranz/Gusstoleranz |
 | 10473217 | Antriebswelle | grün (vollständig, zweisprachig, STEP passt) |
 | 10473218 | Antriebswelle als Scan | Warnung: kein Textlayer (OCR-Fallback), kein STEP |

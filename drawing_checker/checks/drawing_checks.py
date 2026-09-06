@@ -215,5 +215,8 @@ ALL_CHECKS = [
 
 
 def run_drawing_checks(ctx: CheckContext) -> None:
+    from .materials import run_material_checks  # später Import: Zyklusfrei
+
     for check in ALL_CHECKS:
         check(ctx)
+    run_material_checks(ctx)
