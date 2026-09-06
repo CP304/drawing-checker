@@ -4,6 +4,9 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+# Ausnahme: das fertige Verteilpaket wird mitgeliefert, damit es ohne
+# Bauschritt weitergegeben werden kann.
+!dist/DrawingChecker.zip
 mockdata/out/
 Ergebnisse/
 *_geprüft.xlsx
