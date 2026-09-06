@@ -196,6 +196,11 @@ def check_material_present(ctx: CheckContext, hits: list[MaterialHit]) -> None:
                        "Werkstoffbezeichnung gefunden.")
 
 
+# Gattungsbegriffe für eloxierfähige Werkstoffe (ohne Legierungsangabe).
+RE_ALU_TEXT = re.compile(r"alumin(?:i)?um|\baluminium\b|\btitan(?:ium)?\b",
+                         re.IGNORECASE)
+
+
 def check_material_conflicts(ctx: CheckContext, hits: list[MaterialHit]) -> None:
     """Fachliche Widersprüche zwischen Werkstoff und Freitext/Symbolik."""
     if not hits:
@@ -255,7 +260,15 @@ def check_material_conflicts(ctx: CheckContext, hits: list[MaterialHit]) -> None
                     f"ist fachlich unsinnig",
                     bbox=bbox, page=page)
         anod = _find_context(ctx, RE_ANODIZE)
-        if anod and primary.category not in ("alu", "titan"):
+        # Auf Zeichnungen mit mehreren Werkstoffen (Baugruppen, Einsätze)
+        # gehört das Eloxieren oft zu einem anderen Teil als dem
+        # Hauptwerkstoff – dann ist es kein Widerspruch.
+        # Auch die bloße Nennung („Aluminum insert") zählt hier als Beleg –
+        # für den Widerspruch genügt sie, für MAT.MISSING nicht (eine
+        # Gattung ohne Legierung ist keine beschaffbare Angabe).
+        eloxierbar = (any(h.material.category in ("alu", "titan") for h in hits)
+                      or bool(RE_ALU_TEXT.search(ctx.pdf.full_text())))
+        if anod and not eloxierbar and primary.category not in ("alu", "titan"):
             snippet, bbox, page = anod
             ctx.add("MAT.COATING_CONFLICT",
                     f"Widerspruch: Eloxieren („{snippet}“) ist nur für "

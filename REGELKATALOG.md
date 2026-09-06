@@ -1,6 +1,6 @@
 # Regelkatalog
 
-Alle 95 Prüfregeln des Drawing Checkers – Grundlage für die Abstimmung mit
+Alle 98 Prüfregeln des Drawing Checkers – Grundlage für die Abstimmung mit
 dem Fachbereich. Jede Regel ist über `drawing_checker/rules/profiles.yaml`
 (bzw. ein eigenes Paket in `regeln/`) einzeln abschaltbar, und ihre Severity
 ist frei einstellbar. Die aktuell aktiven Regeln zeigt
@@ -86,6 +86,8 @@ Bohrung darf unrund oder krumm sein, solange die Messpunkte stimmen.
 | `DIM.CHAIN` | Prüfen | Geschlossene Maßkette: Teilmaße auf einer Maßlinie summieren sich zum ebenfalls tolerierten Gesamtmaß |
 | `DIM.TOL_ORDER` | Fehler | Grenzabmaße vertauscht (oberes Abmaß kleiner als unteres) – leeres Toleranzfeld, nicht fertigbar |
 | `DIM.BASIC_TOL` | Fehler | Theoretisch genaues Maß (eingerahmt) zusätzlich toleriert – Widerspruch zu ISO 1101 |
+| `THRD.DEPTH` | Fehler | Gewinde tiefer gefordert als die zugehörige Kernbohrung – nicht herstellbar |
+| `THRD.SHORT` | Prüfen | Einschraubtiefe unter 1×D (Stahl) bzw. 1,5×D (Aluminium) – das Gewinde reißt vor der Schraube aus (VDI 2230) |
 | `THRD.FIT_CLASS` | Fehler | Gewinde mit Passungsklasse bemaßt („M12 H7" statt 6H/6g, ISO 965) |
 | `SCALE.MISMATCH` | *(aus)* | Gemessene Ansicht überschreitet das größte eingetragene Maß |
 
@@ -185,10 +187,18 @@ Formulierungen, Hausnorm-Kürzel und Vorzugsmaße stehen in
 | `GEO.ASSEMBLY_MINOR` | Prüfen | Stückliste vorhanden, Modell hat nur einen Körper |
 | `GEO.NOT_FUSED` | Hinweis | Sich berührende, nicht verschmolzene Körper |
 | `GEO.CONTOUR` | Prüfen | Konturprojektion (bestätigt bzw. entkräftet das Maß-Urteil) |
+| `GEO.MIRROR` | Fehler | Die Ansichten passen besser zum **gespiegelten** Modell – falsche Hand gespeichert. Hüllmaße, Volumen, Masse und Bohrbild sind bei gespiegelten Teilen identisch; nur die Kontur verrät den Fall |
 | `GEO.VIEW_SIZE` | *(aus)* | Gemessene Ansicht größer als das Modell |
 
-Der Geometrieabgleich stützt sich auf vier unabhängige Indizien (Hüllmaße,
-Masse, Bohrbild, Konturprojektion) – siehe README. `SCALE.MISMATCH` und
+Der Geometrieabgleich stützt sich auf fünf unabhängige Indizien (Hüllmaße,
+Masse, Bohrbild, Konturprojektion, Spiegelung) – siehe README.
+
+**Richtung der Abweichung entscheidet über die Härte:** Ist ein bemaßtes Maß
+*größer* als das Modell, kann das Teil es nicht enthalten – K.O. Ist
+umgekehrt das *Modell* größer als jedes bemaßte Maß, fehlt meist nur das
+Gesamtmaß auf dem Blatt (Maßkette, Folgeblatt); das gibt nur „Prüfen".
+Am Kalibriersatz aus 84 echten Zeichnungen war das die Ursache für drei von
+vier K.O.-Fehlurteilen. `SCALE.MISMATCH` und
 `GEO.VIEW_SIZE` sind im Auslieferzustand deaktiviert, weil Blatt- und
 Ansichtsmaßstab in vielen CAD-Systemen auseinanderfallen.
 

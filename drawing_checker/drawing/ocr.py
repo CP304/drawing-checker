@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 
 import pymupdf
 
+from ..core.housekeeping import release_memory
 from ..core.models import BBox
 
 if TYPE_CHECKING:
@@ -142,9 +143,17 @@ def ocr_words(doc: "pymupdf.Document",
         angle = _skew_angle(img, cfg) if cfg.deskew else 0.0
         if angle:
             log.info("OCR Seite %d: Schräglage %.1f° korrigiert", pno + 1, angle)
-            img = img.rotate(angle, resample=Image.BICUBIC, fillcolor=255)
-        page_words = _ocr_page(img, pno, cfg, pytesseract, Image, Word)
-        words.extend(page_words)
+            gerade = img.rotate(angle, resample=Image.BICUBIC, fillcolor=255)
+            img.close()
+            img = gerade
+        try:
+            words.extend(_ocr_page(img, pno, cfg, pytesseract, Image, Word))
+        finally:
+            # Eine A1-Seite bei 400 dpi sind über 100 MB Bilddaten. Ohne
+            # ausdrückliches Schließen wächst der Prozess im Dauerlauf mit
+            # jeder gescannten Zeichnung (gemessen mit tools/langlauf.py).
+            img.close()
+            release_memory()
     words = _dedupe(words)
     if cfg.fix_tokens:
         words = [_fixed(w, Word) for w in words]
@@ -245,7 +254,10 @@ def _binarize(img, Image):
     with np.errstate(divide="ignore", invalid="ignore"):
         sigma_b = np.where(denom > 0, (mu_t * omega - mu) ** 2 / denom, 0.0)
     threshold = int(np.argmax(sigma_b))
-    return Image.fromarray(((arr > threshold) * 255).astype("uint8"))
+    out = Image.fromarray(((arr > threshold) * 255).astype("uint8"))
+    del arr, hist, omega, mu, sigma_b
+    img.close()
+    return out
 
 
 def _skew_angle(img, cfg: OcrSettings) -> float:
@@ -260,6 +272,7 @@ def _skew_angle(img, cfg: OcrSettings) -> float:
 
     small = img.resize((img.width // 4 or 1, img.height // 4 or 1))
     base = np.asarray(small, dtype=np.float32)
+    small.close()
     base = 255.0 - base                      # Schrift = hohe Werte
     best_angle, best_score = 0.0, -1.0
     step = 0.5
@@ -271,6 +284,7 @@ def _skew_angle(img, cfg: OcrSettings) -> float:
             rotated = PILImage.fromarray(base.astype("uint8")).rotate(
                 angle, resample=PILImage.BILINEAR, fillcolor=0)
             arr = np.asarray(rotated, dtype=np.float32)
+            rotated.close()
         profile = arr.sum(axis=1)
         score = float(np.var(profile))
         if score > best_score:
@@ -288,9 +302,12 @@ def _ocr_page(img, pno: int, cfg: OcrSettings, pytesseract, Image, Word
                      pytesseract, Word))
     for angle in cfg.rotations:
         rotated = img.rotate(-angle, expand=True, fillcolor=255)
-        out.extend(_pass(rotated, pno, cfg,
-                         cfg.min_conf + cfg.rotation_conf_bonus, angle, scale,
-                         img.height, pytesseract, Word))
+        try:
+            out.extend(_pass(rotated, pno, cfg,
+                             cfg.min_conf + cfg.rotation_conf_bonus, angle,
+                             scale, img.height, pytesseract, Word))
+        finally:
+            rotated.close()
     return out
 
 

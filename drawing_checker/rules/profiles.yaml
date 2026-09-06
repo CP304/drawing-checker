@@ -114,6 +114,8 @@ profiles:
       DIM.TOL_ORDER:   {enabled: true, severity: error}    # Grenzabmaße vertauscht
       DIM.BASIC_TOL:   {enabled: true, severity: error}    # TED-Maß zusätzlich toleriert
       SURF.TOL_MISMATCH: {enabled: true, severity: warning, max_ratio: 0.5}
+      THRD.DEPTH:      {enabled: true, severity: error}    # Gewinde tiefer als die Bohrung
+      THRD.SHORT:      {enabled: true, severity: warning}  # Einschraubtiefe unter 1xD
       # --- Masse-Plausibilität (ohne STEP prüfbar) ------------------------------
       MASS.IMPOSSIBLE: {enabled: true, severity: error}    # schwerer als der Hüllquader
       MASS.TOO_LIGHT:  {enabled: true, severity: warning}  # Füllgrad unter 1 %
@@ -148,6 +150,10 @@ profiles:
       GEO.ASSEMBLY:        {enabled: true, severity: error}   # Baugruppe statt Einzelteil
       GEO.ASSEMBLY_MINOR:  {enabled: true, severity: warning}
       GEO.NOT_FUSED:       {enabled: true, severity: info}     # Körper nicht verschmolzen
+      # Spiegelprüfung: falsche Hand gespeichert (nur über die Kontur
+      # erkennbar – Hüllmaße, Masse und Bohrbild sind identisch).
+      GEO.MIRROR:          {enabled: true, severity: error, min_score: 0.5,
+                            min_abstand: 0.15}
       # Maßstabsbasierte Prüfungen: standardmäßig AUS.
       # Viele CAD-Systeme führen im Schriftfeld den Blattmaßstab, einzelne
       # Ansichten haben aber eigene Maßstäbe (Detail-/Schnittansichten).

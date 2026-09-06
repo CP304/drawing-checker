@@ -48,10 +48,15 @@ def annotate(pdf: DrawingPdf, result: MaterialResult, out_path: Path,
     for page in pages:
         pix = pdf.render_page(page, dpi=dpi)
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-        img = _draw_page(img, result, page, scale)
+        canvas = _draw_page(img, result, page, scale)
         path = out_path if page == 0 else out_path.with_stem(
             f"{out_path.stem}_s{page + 1}")
-        img.save(path)
+        canvas.save(path)
+        # Bilder ausdrücklich schließen: eine A1-Seite bei 200 dpi sind rund
+        # 100 MB Rohdaten; im Dauerlauf summiert sich das sonst auf.
+        canvas.close()
+        img.close()
+        pix = None
         if page == 0:
             first = path
     assert first is not None

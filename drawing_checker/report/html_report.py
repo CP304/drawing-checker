@@ -38,6 +38,10 @@ _STATUS_TEXT = {
 }
 
 _CSS = """
+.hilfe{background:#f7f9fc;border:1px solid #dde3ec;border-radius:6px;
+  padding:10px 14px;margin:6px 0 18px}
+.hilfe p{margin:6px 0}
+
 body{font-family:'Segoe UI',Arial,sans-serif;margin:0;background:#f4f5f7;color:#1c1c1c}
 .wrap{max-width:1200px;margin:0 auto;padding:24px}
 h1{font-size:22px;margin:0 0 4px}
@@ -124,6 +128,32 @@ def write_html_report(config: RunConfig, results: list[MaterialResult],
 <div class="tile">Mit Findings<b style="color:#e69100">{n_find}</b></div>
 <div class="tile">Fehlgeschlagen<b style="color:#c81e1e">{n_fail}</b></div>
 </div>
+<h2>So lesen Sie diesen Bericht</h2>
+<div class="hilfe">
+<p><b>Reihenfolge:</b> Arbeiten Sie die Liste „Häufigste Mängel“ von oben ab –
+ dort steht, was am meisten Zeichnungen betrifft. Ein Punkt, der 40-mal
+ auftaucht, ist meist ein Vorlagen- oder Gewohnheitsfehler und mit einer
+ Entscheidung für alle erledigt.</p>
+<p><b>Die vier Bewertungen:</b>
+ <span class="badge" style="background:{_SEV_COLOR[Severity.BLOCKER]}">K.O.</span>
+ Paket unbrauchbar oder Geometrie passt nicht – nicht anfragen.
+ <span class="badge" style="background:{_SEV_COLOR[Severity.ERROR]}">Fehler</span>
+ klare Beanstandung, Zeichnung nachbessern.
+ <span class="badge" style="background:{_SEV_COLOR[Severity.WARNING]}">Prüfen</span>
+ vom Programm nicht sicher entscheidbar – kurz ansehen.
+ <span class="badge" style="background:{_SEV_COLOR[Severity.INFO]}">Hinweis</span>
+ nur zur Information.</p>
+<p><b>Wo steht was:</b> Jede Zeile der Ergebnis-Excel enthält Uhrzeit der
+ Prüfung, die gefundenen Mängel im Klartext, das letzte Änderungsdatum der
+ Zeichnung, die erkannten Fertigungsverfahren und den Verweis auf das
+ annotierte Bild. Im Bild sind die Fundstellen nummeriert und rechts in
+ einer Legende erklärt.</p>
+<p><b>Wenn etwas falsch gemeldet wirkt:</b> Das Bild zeigt, worauf sich die
+ Meldung bezieht. Regeln lassen sich einzeln abschalten oder anders
+ bewerten (Datei <code>regeln/profiles.yaml</code>) – bitte an die
+ Systembetreuung melden, statt den Bericht zu ignorieren.</p>
+</div>
+
 <h2>Häufigste Mängel</h2>
 <table><tr><th>Regel</th><th>Bewertung</th><th>Anzahl</th><th>Beispiel</th></tr>
 {''.join(top) or '<tr><td colspan="4">Keine Findings.</td></tr>'}</table>

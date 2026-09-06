@@ -129,7 +129,7 @@ stillschweigend nichts zu prüfen.
 
 ## Regelkatalog
 
-Alle 95 Regeln mit Severity, Prüflogik und Normbezug sind in
+Alle 98 Regeln mit Severity, Prüflogik und Normbezug sind in
 [REGELKATALOG.md](REGELKATALOG.md) dokumentiert – die Grundlage für die
 Abstimmung mit dem Fachbereich. Ein Test stellt sicher, dass neue Regeln
 dort auftauchen.
@@ -216,6 +216,42 @@ Die Gewichtsangabe wird auf zwei Wegen verifiziert:
 
 Rohteil-/Bruttogewichte werden erkannt und dem Fertiggewicht nachgeordnet,
 weil das STEP das fertige Teil beschreibt.
+
+## Kalibrierung an echten Zeichnungen
+
+`mockdata/echt_quellen/` enthält **84 echte, frei lizenzierte
+Fertigungszeichnungen** (28 mit STEP) aus OreSat (CERN-OHL-S v2) und
+ShapeOko (CC BY-SA 3.0) – Frästeile, Blech, Guss, Baugruppen, in mm und in
+Zoll, ISO- und ASME-Bemaßung. `mockdata/inject_errors.py` erzeugt daraus je
+Zeichnung ein unverändertes Referenzpaket und eines mit gezielt
+eingebautem Fehler; `tools/kalibrier_auswertung.py` stellt beides
+gegenüber.
+
+Der Nutzen ist messbar: Der Lauf über diesen Satz hat drei echte Schwächen
+aufgedeckt, die an selbstgebauten Musterzeichnungen unsichtbar blieben –
+ein zu gieriges Regex machte aus 21 Frästeilen „Schweißteile", der
+Geometrieabgleich meldete K.O., wenn nur das Gesamtmaß auf dem Blatt
+fehlte, und Allgemeintoleranzen im Freitext („Tolerance unless otherwise
+noted: +/- 0.25mm") galten als nicht vorhanden. Harte Fehlmeldungen auf den
+unveränderten Zeichnungen: **155 → 88**.
+
+## Dauerlauf
+
+`tools/langlauf.py` prüft, ob das Werkzeug stundenlang durchhält: es baut
+beliebig viele Materialnummern aus Mockpaketen, lässt den normalen
+Orchestrator darüberlaufen und misst Speicher, Plattenbedarf und Zeit je
+Nummer.
+
+```bash
+python -m tools.langlauf --count 200
+```
+
+Damit wurden zwei echte Speicherlecks gefunden (der STEP-Leser von
+OpenCascade und der interne Zwischenspeicher von PyMuPDF) – vorher wuchs
+der Prozess um rund 12 MB je Materialnummer, jetzt um 0,04 MB. Während des
+Laufs werden entpackte Pakete nach der Prüfung gelöscht und der freie
+Plattenplatz überwacht; wird es eng, hält der Lauf geordnet an und ist
+fortsetzbar.
 
 ## Regelkatalog anpassen
 

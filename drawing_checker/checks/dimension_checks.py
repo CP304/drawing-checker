@@ -23,6 +23,10 @@ typischen Kostentreiber der Zerspanung ab:
                    untere) – das Maß ist so nicht fertigbar.
   DIM.BASIC_TOL    Theoretisch genaues Maß (eingerahmt) zusätzlich
                    toleriert – Widerspruch nach ISO 1101.
+  THRD.DEPTH       Gewinde tiefer gefordert als die Bohrung – so nicht
+                   herstellbar (der Bohrer kommt nicht weiter).
+  THRD.SHORT       Einschraubtiefe unter 1×D – die Verbindung trägt die
+                   Schraubenfestigkeit nicht.
 """
 from __future__ import annotations
 
@@ -344,6 +348,64 @@ def _num(raw: str) -> float:
     return float(raw.replace(",", "."))
 
 
+# Mindest-Einschraubtiefe als Vielfaches des Nenndurchmessers. Faustwerte
+# der Verbindungstechnik (VDI 2230): Stahl 1×D, Guss 1,25×D, Alu 1,5–2×D.
+MIN_ENGAGEMENT = {"stahl": 1.0, "guss": 1.25, "alu": 1.5}
+RE_SOFT_MATERIAL = re.compile(
+    r"\bAl(?:Mg|Si|Cu|Zn)|EN\s?AW|aluminium|\bGD-?Al|kunststoff|\bPA6|POM",
+    re.IGNORECASE)
+
+
+def check_thread_depths(ctx: CheckContext, dims: list[DimValue]) -> None:
+    """Gewindetiefe gegen Bohrtiefe und gegen die Mindesteinschraubtiefe.
+
+    Beide Fälle stehen auf der Zeichnung, werden aber selten gegengerechnet:
+    „M10 ↧25" mit „⌀8,5 ↧20" ist nicht herstellbar, und „M10 ↧6" trägt in
+    Aluminium nicht.
+    """
+    threads = [d for d in dims if d.kind is DimKind.THREAD and d.depth]
+    if not threads:
+        return
+    weich = bool(RE_SOFT_MATERIAL.search(ctx.pdf.full_text()))
+    faktor = MIN_ENGAGEMENT["alu"] if weich else MIN_ENGAGEMENT["stahl"]
+    bohrungen = [d for d in dims if d.kind is DimKind.DIAMETER and d.depth]
+
+    for t in threads:
+        if ctx.profile.enabled("THRD.DEPTH"):
+            core = _core_hole(t.value)
+            passende = [b for b in bohrungen
+                        if core and abs(b.value - core) <= 0.6]
+            for b in passende:
+                if t.depth > b.depth + 0.5:
+                    ctx.add("THRD.DEPTH",
+                            f"Gewinde „{t.raw}“ ist {t.depth:g} mm tief "
+                            f"gefordert, die Bohrung ⌀{b.value:g} nur "
+                            f"{b.depth:g} mm",
+                            bbox=t.bbox, page=t.page,
+                            detail="Das Gewinde kann nicht tiefer sein als "
+                                   "die Kernbohrung. Üblich sind 2–5 mm "
+                                   "Bohrungsüberlauf für den Gewindeauslauf "
+                                   "(bei Grundlöchern zwingend).")
+                    break
+        if ctx.profile.enabled("THRD.SHORT") and t.depth < t.value * faktor:
+            werkstoff = "weichem Werkstoff (Alu/Kunststoff)" if weich else "Stahl"
+            ctx.add("THRD.SHORT",
+                    f"Einschraubtiefe {t.depth:g} mm bei „{t.raw}“ ist kurz – "
+                    f"in {werkstoff} sind mindestens "
+                    f"{t.value * faktor:.0f} mm üblich",
+                    bbox=t.bbox, page=t.page,
+                    detail="Unter etwa 1×D (Stahl) bzw. 1,5×D (Aluminium) "
+                           "reißt das Gewinde aus, bevor die Schraube ihre "
+                           "Festigkeit erreicht (VDI 2230). Entweder tiefer "
+                           "gewinden oder Gewindeeinsatz vorsehen.")
+
+
+def _core_hole(nominal: float) -> float | None:
+    from .geometry_checks import THREAD_CORE_DIA
+
+    return THREAD_CORE_DIA.get(int(nominal))
+
+
 def run_dimension_checks(ctx: CheckContext, dims: list[DimValue]) -> None:
     check_dimension_chain(ctx, dims)
     check_tight_tolerances(ctx, dims)
@@ -352,3 +414,4 @@ def run_dimension_checks(ctx: CheckContext, dims: list[DimValue]) -> None:
     check_surface_plausibility(ctx)
     check_tolerance_order(ctx, dims)
     check_roughness_vs_tolerance(ctx, dims)
+    check_thread_depths(ctx, dims)

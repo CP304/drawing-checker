@@ -40,11 +40,20 @@ RE_UNIT_MM = re.compile(r"(dimensions?\s+(?:are\s+)?in\s+mm|maße\s+in\s+mm"
                         re.IGNORECASE)
 # ASME-Welt: Toleranzblock im Schriftfeld + Y14.5 als Tolerierungsgrundsatz.
 RE_ASME_Y145 = re.compile(r"ASME\s*Y\s*14\.5", re.IGNORECASE)
+# Allgemeintoleranz ohne Normbezug: ASME-Toleranzblock oder Freitext.
+# „+/-" ist die ASCII-Schreibweise von ±; ohne sie meldete der Checker an
+# 31 echten Zeichnungen des Kalibriersatzes fälschlich „keine
+# Allgemeintoleranz" (z. B. „Tolerance unless otherwise noted: +/- 0.25mm").
+_PM = r"(?:±|\+/-|\+-)"
 RE_ASME_TOLBLOCK = re.compile(
-    r"TOLERANCES?\s*[:\s].{0,200}?(?:DECIMAL|±|ANGULAR)"
-    r"|TOLERANCES?\s+WITHIN\s*[±]?\s*\d"   # "TOLERANCES WITHIN 0.1"
-    r"|\.X{1,3}\s*(?:±|=)"                 # Toleranzzeilen der Form .X± / .XX±
-    r"|X\.X{1,3}\s*(?:±|=)",
+    rf"TOLERANCES?\s*[:\s].{{0,200}}?(?:DECIMAL|{_PM}|ANGULAR)"
+    rf"|TOLERANCES?\s+WITHIN\s*{_PM}?\s*\d"     # "TOLERANCES WITHIN 0.1"
+    rf"|TOLERANCE[^.\n]{{0,60}}(?:unless|otherwise|noted|specified)"
+    rf"[^.\n]{{0,40}}{_PM}?\s*\d"                # "Tolerance unless ...: +/- 0,25"
+    rf"|(?:allgemein|frei|unbemaßt)\w*toleranz\w*[^.\n]{{0,40}}{_PM}?\s*\d"
+    rf"|(?:alle|all)\s+(?:maße|dimensions)[^.\n]{{0,30}}{_PM}\s*\d"
+    rf"|\.X{{1,3}}\s*(?:{_PM}|=)"                 # Toleranzzeilen .X± / .XX±
+    rf"|X\.X{{1,3}}\s*(?:{_PM}|=)",
     re.IGNORECASE | re.DOTALL)
 # Kantenzustand als Freitext (statt ISO 13715).
 RE_EDGE_TEXT = re.compile(
@@ -75,8 +84,15 @@ RE_BOM_HEADER = re.compile(
 RE_BALLOON_NUM = re.compile(r"^\d{1,2}$")
 RE_DATUM = re.compile(r"^[A-Z]$|^\[?[A-Z](?:[-|][A-Z])?\]?$")
 
-WELD_CONTEXT = re.compile(r"schwei|weld|\bwps\b|naht|fillet|seam|a\d+\s*[▲△]?",
-                          re.IGNORECASE)
+# Schweißkontext: NUR eindeutige Belege. Früher stand hier auch ein
+# freies "a\d+" für das a-Maß – das traf jede Zeichnungsnummer mit "A01"
+# und machte aus 21 gefrästen Teilen des Kalibriersatzes Schweißteile.
+# Das a-/z-Maß zählt jetzt nur mit Nahtsymbol (▲/△) davor oder dahinter.
+WELD_CONTEXT = re.compile(
+    r"schwei[ßs]|\bweld|\bwps\b|\bnaht\b|kehlnaht|stumpfnaht"
+    r"|fillet\s*weld|weld\s*seam|ISO\s*2553|ISO\s*5817"
+    r"|[▲△]\s*[az]\s?\d|(?<![A-Za-z0-9])[az]\s?\d{1,2}\s*[▲△]",
+    re.IGNORECASE)
 CAST_CONTEXT = re.compile(r"\bguss|gussteil|casting|\bcast\b|EN[-\s]?GJ[SLMV]"
                           r"|\bGG[-\s]?\d\d|\bGGG[-\s]?\d\d|rohteil|formschräge"
                           r"|draft\s+angle", re.IGNORECASE)

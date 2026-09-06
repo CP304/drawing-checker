@@ -128,3 +128,7 @@ class RunConfig:
     sap_connection: str = "P11"
     mock_source: Path | None = None # gesetzt => MockSapAdapter statt echtem SAP
     sap_flow: Path | None = None    # importierter .vbs-Ablauf (sonst Suchpfade)
+    # Dauerlauf-Haushalt: entpackte Pakete nach der Prüfung löschen und
+    # anhalten, bevor die Platte voll ist.
+    keep_packages: bool = False     # True = Pakete zur Fehlersuche behalten
+    min_free_mb: int = 500          # Sicherheitsreserve auf dem Laufwerk

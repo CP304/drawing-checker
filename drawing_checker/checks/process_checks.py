@@ -26,8 +26,11 @@ from .base import CheckContext
 # a-Maß (Nahtdicke) und z-Maß (Schenkellänge) einer Kehlnaht.
 RE_WELD_A = re.compile(r"(?<![A-Za-z0-9])a\s?(\d{1,2}(?:[.,]\d)?)\b")
 RE_WELD_Z = re.compile(r"(?<![A-Za-z0-9])z\s?(\d{1,2}(?:[.,]\d)?)\b")
+# "fillet" heißt auf englischen Zeichnungen meist Eckenradius, nicht
+# Kehlnaht – allein ist es kein Schweißbeleg (Kalibriersatz: 21 Fehlalarme).
 RE_WELD_CONTEXT = re.compile(
-    r"schwei[ßs]|weld|naht|seam|ISO\s*2553|ISO\s*5817|kehlnaht|fillet",
+    r"schwei[ßs]|\bweld|\bnaht\b|kehlnaht|fillet\s*weld|weld\s*seam"
+    r"|ISO\s*2553|ISO\s*5817",
     re.IGNORECASE)
 RE_BUTT_WELD = re.compile(
     r"stumpfnaht|stumpfsto[ßs]|\bV-?naht\b|\bY-?naht\b|\bU-?naht\b"

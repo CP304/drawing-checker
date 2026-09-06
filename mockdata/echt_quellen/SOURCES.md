@@ -1,35 +1,67 @@
 # Herkunft der echten Testzeichnungen
 
 Reale, frei lizenzierte Fertigungszeichnungen (mit passenden STEP-Modellen,
-wo verfügbar) zur Kalibrierung des Checkers. Nur für interne Test-/
+wo verfügbar) zur Kalibrierung des Checkers. Nur für interne Test- und
 Entwicklungszwecke; Lizenzhinweise beachten.
 
-## OreSat (Portland State Aerospace Society)
+**Stand: 84 Zeichnungen, davon 28 mit STEP-Modell.**
 
-Quelle: https://github.com/oresat/oresat-structure — Lizenz: CERN-OHL-v2.
-Professionelle SolidWorks-Fertigungszeichnungen (ASME Y14.5, Maße in mm)
-mit passenden STEP-Modellen:
+Der Satz ist bewusst breit: Frästeile, Blechteile, Wellen/Shims, Guss- und
+Baugruppenzeichnungen, in Millimeter und in Zoll, ISO- und ASME-Bemaßung,
+sauber und schlampig bemaßt. Genau daran zeigt sich, ob eine Regel trägt
+oder nur auf der eigenen Mustervorlage funktioniert.
 
-- supportBracket.pdf/.STEP (G10 Fiberglas)
-- lensmount.pdf/.STEP (Kupfer C110)
-- copperThermalMass.pdf/.STEP (Kupfer C110)
-- thermalStrap.pdf/.STEP (Kupfer)
-- CassegrainBase.pdf/.STEP (Aluminium 6061-T6)
-- OreSat_InhibitPin.pdf/.STEP (Aluminium 6061-T6, eloxiert)
-- OreSat_PushPlate.pdf/.STEP (Aluminium 6061-T6)
+## OreSat / PSAS (Portland State Aerospace Society) — 56 Zeichnungen
 
-## ShapeOko / buildlog.net
+Quelle: https://github.com/oresat/oresat-structure — Lizenz: **CERN-OHL-S v2**.
+Professionelle SolidWorks-Fertigungszeichnungen (ASME Y14.5, überwiegend in
+Millimeter) mit STEP-Modellen. Enthalten sind unter anderem:
 
-Quelle: https://github.com/shapeoko/ShapeOko — Lizenz: CC BY-SA 3.0.
-Inventor-Zeichnungen (Maße in mm):
+- Rahmen der Satellitenstruktur (1U/1.5U/2U/3U, jeweils ±X und Y)
+- Kartenkeile in mehreren Varianten (CardWedge*)
+- Kamera- und Optikteile (CassegrainBase, lensmount, Shims, Baffle)
+- Thermik (copperThermalMass, thermalStrap, thermalClamp)
+- Reaktionsräder (MountingBeam, MotorBracket, RWWeight, MagnetHolder)
+- Vibrationsprüfvorrichtungen, Montagejigs, Endkarten
 
-- DW660_Mount.pdf/.stp (Fräsmotor-Halter, HDPE/UHMW)
-- MSK01-03.pdf (Z-Achsen-Teil, ohne STEP)
-- SM-S02.pdf (Front/Back Plate, ohne STEP)
+Dateien tragen das Präfix `oresat_`; die sieben zuerst aufgenommenen
+Zeichnungen behielten ihre ursprünglichen Namen (CassegrainBase.pdf,
+lensmount.pdf, copperThermalMass.pdf, thermalStrap.pdf, supportBracket.pdf,
+OreSat_InhibitPin.pdf, OreSat_PushPlate.pdf).
+
+## ShapeOko / buildlog.net — 28 Zeichnungen
+
+Quelle: https://github.com/shapeoko/ShapeOko — Lizenz: **CC BY-SA 3.0**.
+Inventor-/SolidWorks-Zeichnungen einer offenen CNC-Fräse: Blechteile,
+Aluminiumprofile, Platten, Baugruppen. Teilweise in Zoll bemaßt und mit
+unvollständigen Schriftfeldern – wertvoll, weil genau solche Zeichnungen im
+Einkauf auftauchen.
+
+Dateien tragen das Präfix `shapeoko_`; drei Zeichnungen der ersten Runde
+heißen weiterhin DW660_Mount.pdf, MSK01-03.pdf und SM-S02.pdf.
+
+## Bewusst NICHT aufgenommen
+
+- **Katalogblätter von Händlern** (McMaster-Carr u. Ä.): keine
+  Fertigungszeichnungen, sondern Referenzblätter zugekaufter Normteile.
+  Sie verfälschen die Fehlalarm-Statistik.
+- **Zeichnungen unter NC-Lizenz** (z. B. Ultimaker-Teilezeichnungen,
+  CC BY-NC): technisch hervorragend, aber die Lizenz erlaubt keine
+  kommerzielle Nutzung – für ein Firmenwerkzeug ungeeignet.
+- **Leiterplatten-Fertigungsunterlagen**: anderer Zeichnungstyp, andere
+  Regeln.
 
 ## Nutzung
 
-    python -m mockdata.inject_errors mockdata/echt_quellen <zielordner>
+```bash
+python -m mockdata.inject_errors mockdata/echt_quellen <zielordner>
+python -m drawing_checker.app --headless --mock <zielordner> \
+    --excel <zielordner>/Materialliste_Echt.xlsx --column C
+python -m tools.kalibrier_auswertung <zielordner>
+```
 
-erzeugt daraus je Zeichnung ein unverändertes Referenzpaket und ein Paket
-mit injizierten Fehlern (siehe MANIFEST.txt im Zielordner).
+Der erste Aufruf erzeugt je Zeichnung ein unverändertes **Referenzpaket**
+und ein Paket mit **injizierten Fehlern** (MANIFEST.txt dokumentiert, was
+wo eingebaut wurde). Die Auswertung stellt beides gegenüber: Was auf den
+unveränderten Zeichnungen als „Fehler" gemeldet wird, ist Fehlalarm-Verdacht;
+was nur auf den Fehlerpaketen anschlägt, ist echte Trefferleistung.

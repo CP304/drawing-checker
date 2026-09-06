@@ -15,6 +15,7 @@ ein "unsicher" des Maßabgleichs bestätigen, ein klar schlechter Score ein
 """
 from __future__ import annotations
 
+import gc
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -80,6 +81,28 @@ def project_step_silhouettes(step_path: Path) -> list[list[Segment]]:
         raise ValueError(f"STEP nicht lesbar: {step_path}")
     reader.TransferRoots()
     shape = reader.OneShape()
+    try:
+        return _project_shape(shape)
+    finally:
+        # Ohne ausdrückliches Freigeben behält OpenCascade das Modell im
+        # Speicher (rund 25 MB je Datei) – im Dauerlauf tödlich.
+        reader = None
+        shape = None
+        gc.collect()
+
+
+def _project_shape(shape) -> list[list[Segment]]:
+    """Projiziert eine eingelesene Gestalt entlang ihrer OBB-Hauptachsen."""
+    from OCP.Bnd import Bnd_OBB
+    from OCP.BRepAdaptor import BRepAdaptor_Curve
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.GCPnts import GCPnts_QuasiUniformDeflection
+    from OCP.gp import gp_Ax2, gp_Ax3, gp_Dir, gp_Pnt, gp_Trsf
+    from OCP.HLRAlgo import HLRAlgo_Projector
+    from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
+    from OCP.TopAbs import TopAbs_EDGE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
 
     obb = Bnd_OBB()
     BRepBndLib.AddOBB_s(shape, obb, True, True, True)
@@ -287,20 +310,29 @@ def iou(a: Image.Image, b: Image.Image) -> float:
     return inter / union if union else 0.0
 
 
-def _orientations(img: Image.Image):
-    yield img
-    yield img.transpose(Image.ROTATE_90)
-    yield img.transpose(Image.ROTATE_180)
-    yield img.transpose(Image.ROTATE_270)
-    m = img.transpose(Image.FLIP_LEFT_RIGHT)
-    yield m
-    yield m.transpose(Image.ROTATE_90)
-    yield m.transpose(Image.ROTATE_180)
-    yield m.transpose(Image.ROTATE_270)
+def _orientations(img: Image.Image, mirrored: bool | None = None):
+    """Lagevarianten einer Ansicht.
+
+    mirrored=None: alle (Drehungen und Spiegelungen)
+    mirrored=False: nur Drehungen  – passt zum Modell wie gespeichert
+    mirrored=True: nur Spiegelungen – passt zur gespiegelten Ausführung
+    """
+    if mirrored is not True:
+        yield img
+        yield img.transpose(Image.ROTATE_90)
+        yield img.transpose(Image.ROTATE_180)
+        yield img.transpose(Image.ROTATE_270)
+    if mirrored is not False:
+        m = img.transpose(Image.FLIP_LEFT_RIGHT)
+        yield m
+        yield m.transpose(Image.ROTATE_90)
+        yield m.transpose(Image.ROTATE_180)
+        yield m.transpose(Image.ROTATE_270)
 
 
 def match_views(views: list[ViewCluster],
-                silhouettes: list[list[Segment]]) -> ContourResult:
+                silhouettes: list[list[Segment]],
+                mirrored: bool | None = None) -> ContourResult:
     if not views or not silhouettes:
         return ContourResult(0.0, 0, detail="keine Ansichten/Silhouetten")
     sil_imgs = [rasterize(s) for s in silhouettes]
@@ -308,7 +340,7 @@ def match_views(views: list[ViewCluster],
     for view in views:
         vimg = rasterize(view.segments)
         best = 0.0
-        for oriented in _orientations(vimg):
+        for oriented in _orientations(vimg, mirrored):
             for simg in sil_imgs:
                 best = max(best, iou(oriented, simg))
         per_view.append(round(best, 3))
@@ -326,3 +358,24 @@ def compare_contours(pdf, step_path: Path) -> ContourResult:
     silhouettes = project_step_silhouettes(step_path)
     views = extract_views(pdf)
     return match_views(views, silhouettes)
+
+
+def check_mirrored(pdf, step_path: Path) -> tuple[float, float, int]:
+    """Passt die Zeichnung besser zur GESPIEGELTEN Ausführung?
+
+    Der klassische Fall „falsche Hand gespeichert": Hüllmaße, Volumen,
+    Masse und Bohrbild sind bei einem gespiegelten Teil identisch – alle
+    anderen Prüfungen laufen also durch. Nur die Kontur verrät es.
+
+    Liefert (Score gerade, Score gespiegelt, Anzahl Ansichten). Verglichen
+    wird dieselbe Silhouette einmal nur mit Drehungen und einmal nur mit
+    Spiegelungen; das ist gleichwertig dazu, das Modell selbst zu spiegeln,
+    aber ohne zweite HLR-Projektion.
+    """
+    silhouettes = project_step_silhouettes(step_path)
+    views = extract_views(pdf)
+    if not views or not silhouettes:
+        return (0.0, 0.0, 0)
+    gerade = match_views(views, silhouettes, mirrored=False)
+    gespiegelt = match_views(views, silhouettes, mirrored=True)
+    return (gerade.score, gespiegelt.score, len(views))

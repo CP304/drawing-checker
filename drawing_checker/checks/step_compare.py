@@ -15,6 +15,7 @@ wird per Profil auf warning herabgestuft (siehe rules/profiles.yaml).
 """
 from __future__ import annotations
 
+import gc
 import logging
 import re
 from dataclasses import dataclass, field
@@ -60,6 +61,13 @@ class StepError(Exception):
 
 # ---------------------------------------------------------------- Backends
 def analyze_step(path: Path) -> StepGeometry:
+    """STEP auswerten und den OpenCascade-Speicher wieder freigeben.
+
+    Wichtig für den Dauerlauf: Der STEP-Leser hält das übertragene Modell
+    fest (~25 MB je Datei). Ohne das ausdrückliche Freigeben unten wächst
+    der Prozess über eine Materialgruppe um Gigabyte und stirbt irgendwann
+    – gemessen mit `python -m tools.langlauf`.
+    """
     try:
         return _analyze_occ(path)
     except ImportError:
@@ -81,12 +89,32 @@ def _analyze_occ(path: Path) -> StepGeometry:
     from OCP.TopoDS import TopoDS
 
     reader = STEPControl_Reader()
-    if reader.ReadFile(str(path)) != IFSelect_RetDone:
-        raise StepError(f"STEP-Datei nicht lesbar: {path}")
-    reader.TransferRoots()
-    shape = reader.OneShape()
-    if shape.IsNull():
-        raise StepError(f"STEP-Datei enthält keine Geometrie: {path}")
+    try:
+        if reader.ReadFile(str(path)) != IFSelect_RetDone:
+            raise StepError(f"STEP-Datei nicht lesbar: {path}")
+        reader.TransferRoots()
+        shape = reader.OneShape()
+        if shape.IsNull():
+            raise StepError(f"STEP-Datei enthält keine Geometrie: {path}")
+        return _measure(shape)
+    finally:
+        # OpenCascade-Speicher ausdrücklich freigeben (siehe analyze_step).
+        reader = None
+        shape = None
+        gc.collect()
+
+
+def _measure(shape) -> StepGeometry:
+    """Vermisst die eingelesene Gestalt (Hüllmaße, Volumen, Zylinder)."""
+    from OCP.Bnd import Bnd_OBB
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GeomAbs import GeomAbs_Cylinder
+    from OCP.GProp import GProp_GProps
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
 
     # Getrennte Volumenkörper zählen (Baugruppe vs. Einzelteil)
     from OCP.TopAbs import TopAbs_SOLID
@@ -337,8 +365,57 @@ def compare_step_to_drawing(
     if main_ok and ratio >= 0.3:
         return CompareResult("passt", summary, detail, main_ok=True)
     if not main_ok and ratio < 0.34:
-        return CompareResult("passt_nicht", summary, detail, main_ok=False)
+        # Richtung der Abweichung entscheidet über die Härte:
+        #   Zeichnungsmaß GRÖSSER als das Modell -> Widerspruch, das Teil
+        #   kann das Maß nicht enthalten.
+        #   Modell GRÖSSER als jedes bemaßte Maß -> meist fehlt schlicht das
+        #   Gesamtmaß auf dem Blatt (Maßkette, Fortsetzungsblatt). Am
+        #   Kalibriersatz aus 92 echten Zeichnungen war das die Ursache für
+        #   drei von vier K.O.-Fehlurteilen – deshalb nur "unsicher".
+        if main > obb[0]:
+            return CompareResult("passt_nicht", summary, detail, main_ok=False)
+        return CompareResult(
+            "unsicher", summary,
+            detail + " Das Modell ist größer als jedes bemaßte Maß – "
+            "möglicherweise fehlt das Gesamtmaß auf der Zeichnung.",
+            main_ok=False)
     return CompareResult("unsicher", summary, detail, main_ok=main_ok)
+
+
+def _check_mirrored(ctx: CheckContext, step: Path,
+                     geometry: StepGeometry) -> None:
+    """Prüft, ob die falsche Hand (gespiegeltes Teil) gespeichert wurde.
+
+    Ein gespiegeltes Bauteil hat dieselben Hüllmaße, dasselbe Volumen,
+    dieselbe Masse und dasselbe Bohrbild – es kommt durch jede andere
+    Prüfung. Nur der Umriss in den Ansichten unterscheidet sich.
+    """
+    if not ctx.profile.enabled("GEO.MIRROR") or geometry.backend != "occ":
+        return
+    try:
+        from .contour_projection import check_mirrored
+
+        gerade, gespiegelt, ansichten = check_mirrored(ctx.pdf, step)
+    except ImportError:
+        return
+    except Exception as exc:
+        log.warning("Spiegelprüfung fehlgeschlagen für %s: %s", step.name, exc)
+        return
+    if ansichten < 2:
+        return
+    abstand = float(ctx.profile.rule_param("GEO.MIRROR", "min_abstand", 0.15))
+    mindest = float(ctx.profile.rule_param("GEO.MIRROR", "min_score", 0.5))
+    if gespiegelt >= mindest and gespiegelt - gerade >= abstand:
+        ctx.add("GEO.MIRROR",
+                "Die Ansichten passen besser zum GESPIEGELTEN Modell – "
+                "vermutlich die falsche Ausführung (linke/rechte Hand) "
+                "gespeichert",
+                detail=f"Konturübereinstimmung: gespiegelt {gespiegelt:.2f} "
+                       f"gegen {gerade:.2f} wie gespeichert, über "
+                       f"{ansichten} Ansichten. Hüllmaße, Volumen und "
+                       f"Bohrbild sind bei gespiegelten Teilen identisch – "
+                       f"diese Prüfung ist die einzige, die den Fall findet. "
+                       f"Vor dem Bestellen die Ausführung klären.")
 
 
 def _apply_contour_stage(ctx: CheckContext, step: Path, result: CompareResult,
@@ -403,6 +480,7 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
         check_threads, check_unit_mismatch,
     )
 
+    _check_mirrored(ctx, step, geometry)
     unit_error = check_unit_mismatch(ctx, geometry, dims)
     extra = [check_mass(ctx, geometry), check_hole_pattern(ctx, geometry, dims)]
     if geometry.backend == "occ" and geometry.volume:

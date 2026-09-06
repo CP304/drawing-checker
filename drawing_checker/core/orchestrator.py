@@ -25,6 +25,9 @@ from ..report.annotate import annotate
 from ..report.excel_writer import ResultWorkbook, read_materials
 from ..sap.adapter import MaterialNotFound, SapAdapter, SapUnavailable
 from . import package as pkg
+from .housekeeping import (
+    DiskFull, DiskGuard, cleanup_package, free_mb, release_memory,
+)
 from .models import JobStatus, MaterialResult, RunConfig, Severity
 from .state import RunState
 
@@ -74,6 +77,9 @@ class Orchestrator:
         self.report_path: Path | None = None
         self._durations: list[float] = []
         self._thread: threading.Thread | None = None
+        self.guard = DiskGuard(self.run_dir / "pakete",
+                               min_free_mb=config.min_free_mb)
+        self._freed_mb = 0.0
 
     def _resolve_run_dir(self, resume: bool) -> Path:
         base = self.config.output_dir
@@ -144,6 +150,7 @@ class Orchestrator:
             self._log(f"Fortsetzen: {self.progress.done} bereits geprüft, "
                       f"{len(todo)} offen")
 
+        self._log(f"Freier Speicherplatz: {free_mb(self.run_dir):.0f} MB")
         for row, material in todo:
             if self.stop_event.is_set():
                 self._log("Lauf vom Anwender abgebrochen")
@@ -151,6 +158,14 @@ class Orchestrator:
             self._wait_if_paused()
             if self.stop_event.is_set():
                 break
+            try:
+                hinweis = self.guard.check()
+            except DiskFull as exc:
+                self.progress.message = str(exc)
+                self._log(str(exc))
+                break
+            if hinweis:
+                self._log(hinweis)
 
             self.progress.current = material
             self.cb.on_progress(self.progress)
@@ -197,6 +212,9 @@ class Orchestrator:
             f"Fertig: {self.progress.ok} ok, {self.progress.findings} mit "
             f"Findings, {self.progress.failed} fehlgeschlagen "
             f"(von {self.progress.total})")
+        if self._freed_mb:
+            self._log(f"Aufgeräumt: {self._freed_mb:.0f} MB Pakete gelöscht, "
+                      f"{free_mb(self.run_dir):.0f} MB frei")
         self._log(self.progress.message)
 
     def _process_with_retries(self, row: int, material: str) -> MaterialResult:
@@ -227,17 +245,36 @@ class Orchestrator:
 
     # ------------------------------------------------- Eine Materialnummer
     def _process_one(self, row: int, material: str) -> MaterialResult:
+        """Eine Materialnummer holen, prüfen und danach aufräumen.
+
+        Das Paket wird nach der Prüfung gelöscht (sofern nicht
+        `keep_packages`): Bild, Findings und Bericht liegen dann schon im
+        Ergebnisordner, das ZIP wird nicht mehr gebraucht. Ohne das wächst
+        ein Lauf über eine ganze Materialgruppe um Gigabyte.
+        """
+        zip_dir = self.run_dir / "pakete"
+        zip_path = self.adapter.fetch_package(material, zip_dir)
+        content = None
+        try:
+            try:
+                content = pkg.extract_package(zip_path, zip_dir, material)
+            except pkg.PackageError as exc:
+                raise MaterialNotFound(str(exc)) from exc
+            return self._check_package(row, material, content)
+        finally:
+            freed = cleanup_package(
+                content.work_dir if content else None, zip_path,
+                keep=self.config.keep_packages)
+            self._freed_mb += freed
+            # Nach jeder Materialnummer aufräumen: Renderpuffer und
+            # OpenCascade-Objekte belegen sonst dauerhaft Speicher.
+            release_memory()
+
+    def _check_package(self, row: int, material: str,
+                       content: pkg.PackageContent) -> MaterialResult:
         t0 = time.time()
         result = MaterialResult(material=material, row=row,
                                 status=JobStatus.RUNNING)
-
-        zip_dir = self.run_dir / "pakete"
-        zip_path = self.adapter.fetch_package(material, zip_dir)
-
-        try:
-            content = pkg.extract_package(zip_path, zip_dir, material)
-        except pkg.PackageError as exc:
-            raise MaterialNotFound(str(exc)) from exc
 
         if content.drawing_pdf is None:
             result.status = JobStatus.FINDINGS

@@ -19,6 +19,8 @@ python -m drawing_checker.app --sap-dry-run 10473215   # Ablauf ohne SAP prüfen
 python -m drawing_checker.app --list-rules    # Regelkatalog je Profil
 python -m drawing_checker.app --ocr-check [x.pdf]  # OCR prüfen/vorführen
 python -m tools.ocr_bench mockdata/echt_quellen    # OCR-Güte messen
+python -m tools.langlauf --count 200          # Dauerlauf: Speicher/Platte
+python -m tools.kalibrier_auswertung <ordner> # Fehlalarme vs. Treffer
 QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # GUI headless
 ```
 
@@ -60,3 +62,11 @@ QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # G
   echte Kalibrierzeichnungen liegen in `mockdata/echt_quellen/` (Lizenzen
   in SOURCES.md), Fehler-Injektion über `mockdata/inject_errors.py`.
 - Vor jedem Push: `python -m pytest tests/ -q` und `--check-rules`.
+- Regeln werden an `mockdata/echt_quellen/` (84 echte Fremdzeichnungen)
+  kalibriert, nicht an Musterzeichnungen: `inject_errors` + `--headless`
+  + `tools/kalibrier_auswertung`. Harte Meldungen auf den unveränderten
+  Referenzen sind Fehlalarm-Verdacht.
+- Speicher: OpenCascade und PyMuPDF geben nichts von selbst frei – nach
+  großen Puffern `core.housekeeping.release_memory()` aufrufen und mit
+  `tools/langlauf.py` gegenmessen.
+- Übergabe an die nächste Sitzung: UEBERGABE.md aktuell halten.
