@@ -145,3 +145,73 @@ def check_threads(ctx: CheckContext, geometry: StepGeometry,
                 detail="Gewinde werden im STEP oft als glatte Bohrung "
                        "modelliert – fehlt auch die, passt das Modell nicht "
                        "zur Zeichnung.")
+
+
+# Faktor zwischen Zoll und Millimeter – der Klassiker bei internationalem
+# Datenaustausch (STEP in inch exportiert, Zeichnung in mm bemaßt).
+INCH_MM = 25.4
+
+
+def check_unit_mismatch(ctx: CheckContext, geometry: StepGeometry,
+                        dims: list[DimValue]) -> bool:
+    """Zoll/mm-Verwechslung zwischen Zeichnung und Modell erkennen.
+
+    Liegt das Verhältnis des größten Zeichnungsmaßes zur längsten
+    Modellkante nahe 25,4 (oder 1/25,4), ist das Modell in der falschen
+    Einheit exportiert – ein Fehler, der wie eine falsche Konfiguration
+    aussieht, aber eine ganz andere Ursache (und Lösung) hat.
+
+    Rückgabe: True, wenn ein Einheitenfehler gemeldet wurde.
+    """
+    if not ctx.profile.enabled("GEO.UNIT_MISMATCH"):
+        return False
+    envelope = [d.value for d in dims
+                if d.kind in (DimKind.LINEAR, DimKind.DIAMETER)]
+    if not envelope or not geometry.obb_dims[0]:
+        return False
+    ratio = max(envelope) / geometry.obb_dims[0]
+    tol = float(ctx.profile.params.get("unit_ratio_tol", 0.06))
+    for factor, text in ((INCH_MM, "Modell in Zoll, Zeichnung in mm"),
+                         (1 / INCH_MM, "Modell in mm, Zeichnung in Zoll")):
+        if abs(ratio - factor) / factor <= tol:
+            ctx.add("GEO.UNIT_MISMATCH",
+                    f"Einheiten-Verwechslung wahrscheinlich: {text} "
+                    f"(Verhältnis {ratio:.1f} ≈ {factor:.3g})",
+                    detail="STEP-Datei mit der richtigen Längeneinheit neu "
+                           "exportieren; die Geometrie selbst ist vermutlich "
+                           "korrekt.")
+            return True
+    return False
+
+
+def check_assembly_vs_part(ctx: CheckContext, geometry: StepGeometry) -> None:
+    """Baugruppe im Modell, aber Einzelteilzeichnung (oder umgekehrt)."""
+    if not ctx.profile.enabled("GEO.ASSEMBLY") or geometry.backend != "occ":
+        return
+    from .drawing_checks import RE_BOM_HEADER
+
+    has_bom = bool(RE_BOM_HEADER.search(ctx.pdf.full_text()))
+    if geometry.disjoint_solids > 1 and not has_bom:
+        ctx.add("GEO.ASSEMBLY",
+                f"Modell enthält {geometry.disjoint_solids} räumlich getrennte "
+                f"Körper, die Zeichnung ist aber ein Einzelteil "
+                f"(keine Stückliste)",
+                detail="Vermutlich wurde die Baugruppe statt des Einzelteils "
+                       "gespeichert – falsches Dokument im Paket.")
+    elif (geometry.solid_count > 1 and geometry.disjoint_solids == 1
+            and ctx.profile.enabled("GEO.NOT_FUSED")):
+        ctx.add("GEO.NOT_FUSED",
+                f"Modell besteht aus {geometry.solid_count} sich berührenden, "
+                f"nicht verschmolzenen Körpern",
+                severity=ctx.profile.severity("GEO.NOT_FUSED"),
+                detail="Volumen- und Masseberechnung bleiben korrekt, aber "
+                       "das Modell ist kein sauberer Einzelkörper – für "
+                       "Folgeprozesse (CAM, FEM) oft problematisch.")
+    elif geometry.disjoint_solids == 1 and geometry.solid_count == 1 and has_bom:
+        ctx.add("GEO.ASSEMBLY",
+                "Zeichnung enthält eine Stückliste, das Modell aber nur einen "
+                "Körper",
+                severity=ctx.profile.severity("GEO.ASSEMBLY_MINOR"),
+                detail="Bei Baugruppenzeichnungen sollte das Modell die "
+                       "Einzelteile enthalten – bitte prüfen, ob das richtige "
+                       "Dokument hinterlegt ist.")

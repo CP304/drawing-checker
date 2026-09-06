@@ -88,6 +88,13 @@ Einzelkriterium unscharf ist:
    Flächenorientierung und Achslage unterschieden und je Achse gruppiert.
 4. **Konturprojektion** (s. u.) als bestätigende Stufe.
 
+Zusätzlich erkennt der Checker zwei Fehlerursachen, die wie ein
+Geometrie-Mismatch aussehen, aber eine andere Behebung brauchen:
+**Zoll/mm-Verwechslung** beim STEP-Export (`GEO.UNIT_MISMATCH`, unterdrückt
+dann den Maß-K.O.) und **Baugruppe statt Einzelteil** im Paket
+(`GEO.ASSEMBLY`; sich berührende, nicht verschmolzene Körper werden davon
+als `GEO.NOT_FUSED` unterschieden).
+
 ## Ausbaustufe Konturprojektion
 
 Zusätzlich zum Maßabgleich projiziert das Tool das STEP-Modell aus den drei

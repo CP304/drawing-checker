@@ -281,9 +281,11 @@ class Orchestrator:
                 # Tiefenprüfungen auf Basis der extrahierten Maße
                 from ..checks.dimension_checks import run_dimension_checks
                 from ..checks.gps_checks import run_gps_checks
+                from ..checks.process_checks import run_process_checks
 
                 run_gps_checks(ctx, dims)
                 run_dimension_checks(ctx, dims)
+                run_process_checks(ctx, dims)
             result.step_summary = check_step(ctx, dims)
 
             result.findings = ctx.findings

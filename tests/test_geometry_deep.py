@@ -45,8 +45,9 @@ def dv(value, kind=DimKind.DIAMETER, count=1):
 # --------------------------------------------------------- STEP-Analyse
 def test_bracket_holes_detected(mock_dir):
     geo = analyze_step(mock_dir / "_arbeit" / "M_10473215.stp")
+    assert geo.solid_count == 1 and geo.disjoint_solids == 1
     assert geo.holes.get(18.0) == 4       # 4 Befestigungsbohrungen
-    assert geo.holes.get(22.0) == 1       # Kopfbohrung
+    assert geo.holes.get(16.0) == 1       # Kopfbohrung im Steg
     assert not geo.shafts                 # Konsole hat keine Außenzylinder
 
 
@@ -227,3 +228,58 @@ def test_wrong_config_has_three_independent_indications(mock_dir, tmp_path):
     for ok_material in ("10473215", "10473217"):
         codes = {f.code for f in res[ok_material].findings}
         assert not [c for c in codes if c.startswith("GEO.")]
+
+
+# ------------------------------------------- Einheiten und Baugruppe
+def test_inch_mm_mismatch_detected(tmp_path):
+    """Modell in Zoll exportiert: Zeichnungsmaß / OBB ≈ 25,4."""
+    from drawing_checker.checks.geometry_checks import check_unit_mismatch
+
+    ctx = make_ctx(tmp_path, ["Werkstoff S355J2", "Länge 254"])
+    geo = StepGeometry(obb_dims=(10.0, 4.0, 2.0), volume=80, backend="occ")
+    assert check_unit_mismatch(ctx, geo, [dv(254, kind=DimKind.LINEAR)])
+    assert ctx.findings[0].code == "GEO.UNIT_MISMATCH"
+    assert ctx.findings[0].severity == Severity.ERROR
+
+
+def test_matching_units_no_finding(tmp_path):
+    from drawing_checker.checks.geometry_checks import check_unit_mismatch
+
+    ctx = make_ctx(tmp_path, ["Werkstoff S355J2"])
+    geo = StepGeometry(obb_dims=(250.0, 100.0, 50.0), volume=1000,
+                       backend="occ")
+    assert not check_unit_mismatch(ctx, geo, [dv(254, kind=DimKind.LINEAR)])
+    assert not ctx.findings
+
+
+def test_assembly_without_bom_is_error(tmp_path):
+    from drawing_checker.checks.geometry_checks import check_assembly_vs_part
+
+    ctx = make_ctx(tmp_path, ["Werkstoff S355J2", "Einzelteil"])
+    geo = StepGeometry(obb_dims=(200, 100, 50), volume=1000, backend="occ",
+                       solid_count=3, disjoint_solids=3)
+    check_assembly_vs_part(ctx, geo)
+    assert ctx.findings[0].code == "GEO.ASSEMBLY"
+    assert ctx.findings[0].severity == Severity.ERROR
+
+
+def test_unfused_solids_are_info(tmp_path):
+    """Sich berührende Körper sind ein Modellierungs-, kein Dokumentfehler."""
+    from drawing_checker.checks.geometry_checks import check_assembly_vs_part
+
+    ctx = make_ctx(tmp_path, ["Werkstoff S355J2"])
+    geo = StepGeometry(obb_dims=(200, 100, 50), volume=1000, backend="occ",
+                       solid_count=2, disjoint_solids=1)
+    check_assembly_vs_part(ctx, geo)
+    assert ctx.findings[0].code == "GEO.NOT_FUSED"
+    assert ctx.findings[0].severity == Severity.INFO
+
+
+def test_single_solid_part_is_fine(tmp_path):
+    from drawing_checker.checks.geometry_checks import check_assembly_vs_part
+
+    ctx = make_ctx(tmp_path, ["Werkstoff S355J2", "Einzelteil"])
+    geo = StepGeometry(obb_dims=(200, 100, 50), volume=1000, backend="occ",
+                       solid_count=1, disjoint_solids=1)
+    check_assembly_vs_part(ctx, geo)
+    assert not ctx.findings

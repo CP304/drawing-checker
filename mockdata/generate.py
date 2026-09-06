@@ -232,7 +232,7 @@ def draw_weld_bracket(path: Path):
     for bx in (40, 280):
         s.dashed_line(X(bx), Y(-8), X(bx), Y(33))
     # Kopfbohrung im Steg
-    s.circle(X(160), Y(180), 11 * sc, THICK)
+    s.circle(X(160), Y(180), 8 * sc, THICK)
     s.dashed_line(X(160) - 8, Y(180), X(160) + 8, Y(180))
     s.dashed_line(X(160), Y(180) - 8 / sc * sc, X(160), Y(180) + 8)
 
@@ -241,7 +241,7 @@ def draw_weld_bracket(path: Path):
     s.dim_h(X(0), X(150), Y(25), Y(25) - 46, "150")
     s.dim_v(Y(205), Y(0), X(320), X(320) + 14, "205")
     s.dim_v(Y(25), Y(0), X(320), X(320) + 26, "25")
-    s.leader(X(162), Y(183), X(200), Y(230), "⌀22 H11")
+    s.leader(X(162), Y(183), X(200), Y(230), "⌀16 H11")
     # Schweißsymbol als Leader (vereinfachter Text)
     s.leader(X(152), Y(35), X(95), Y(80), "a5 △ beidseitig")
 
@@ -280,7 +280,7 @@ def draw_weld_bracket(path: Path):
     s.title_block(
         drawno="DRW-10473215-B", title_de="Schweißkonsole",
         title_en="Welded bracket", material="1.4305",
-        weight="10,4 kg", scale="1:2.5")
+        weight="10,6 kg", scale="1:2.5")
     s.text(15, 15, "10473215", size=9, bold=True)
     s.save(path)
 
@@ -436,7 +436,9 @@ def make_step_bracket(path: Path):
     """Schweißkonsole passend zur Zeichnung (320 × 120 × 205).
 
     Inklusive des Bohrbilds der Zeichnung: 4×⌀18 in der Grundplatte und
-    die Kopfbohrung ⌀22 im Steg – damit prüft der Bohrbildabgleich echt.
+    die Kopfbohrung ⌀16 im Steg – damit prüft der Bohrbildabgleich echt.
+    (⌀16 statt ⌀22, weil eine größere Bohrung den 20 mm breiten Steg
+    durchtrennen würde – genau das meldet GEO.ASSEMBLY.)
     """
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
     from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder
@@ -453,7 +455,7 @@ def make_step_bracket(path: Path):
             shape = BRepAlgoAPI_Cut(shape, hole).Shape()
     # Kopfbohrung ⌀22 quer durch den Steg
     head = BRepPrimAPI_MakeCylinder(
-        gp_Ax2(gp_Pnt(160, -1, 180), gp_Dir(0, 1, 0)), 11.0, 122).Shape()
+        gp_Ax2(gp_Pnt(160, -1, 180), gp_Dir(0, 1, 0)), 8.0, 122).Shape()
     shape = BRepAlgoAPI_Cut(shape, head).Shape()
     _export_step(shape, path)
 

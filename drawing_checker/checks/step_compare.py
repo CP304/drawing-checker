@@ -37,6 +37,8 @@ class StepGeometry:
     shafts: dict[float, int] = field(default_factory=dict)
     planar_faces: int = 0
     face_count: int = 0
+    solid_count: int = 1          # Volumenkörper im Modell
+    disjoint_solids: int = 1      # davon räumlich getrennt (echte Baugruppe)
     backend: str = "fallback"
     point_count: int = 0
 
@@ -85,6 +87,23 @@ def _analyze_occ(path: Path) -> StepGeometry:
     shape = reader.OneShape()
     if shape.IsNull():
         raise StepError(f"STEP-Datei enthält keine Geometrie: {path}")
+
+    # Getrennte Volumenkörper zählen (Baugruppe vs. Einzelteil)
+    from OCP.TopAbs import TopAbs_SOLID
+
+    from OCP.Bnd import Bnd_Box
+
+    solid_boxes = []
+    sexp = TopExp_Explorer(shape, TopAbs_SOLID)
+    while sexp.More():
+        box = Bnd_Box()
+        BRepBndLib.Add_s(sexp.Current(), box, True)
+        if not box.IsVoid():
+            solid_boxes.append((box.GetXMin(), box.GetYMin(), box.GetZMin(),
+                                box.GetXMax(), box.GetYMax(), box.GetZMax()))
+        sexp.Next()
+    solids = len(solid_boxes)
+    disjoint = _count_disjoint_groups(solid_boxes)
 
     obb = Bnd_OBB()
     BRepBndLib.AddOBB_s(shape, obb, True, True, True)
@@ -142,8 +161,42 @@ def _analyze_occ(path: Path) -> StepGeometry:
     return StepGeometry(
         obb_dims=dims, volume=volume, cylinder_diameters=diameters,
         holes=holes, shafts=shafts, planar_faces=planar, face_count=n_faces,
+        solid_count=max(solids, 1), disjoint_solids=max(disjoint, 1),
         backend="occ",
     )
+
+
+def _count_disjoint_groups(boxes: list[tuple], slack: float = 0.01) -> int:
+    """Zählt räumlich getrennte Körpergruppen anhand ihrer Bounding-Boxen.
+
+    Sich berührende oder überlappende Körper gehören zu einem Bauteil
+    (nur nicht verschmolzen); getrennte Gruppen sind eine echte Baugruppe.
+    """
+    n = len(boxes)
+    if n <= 1:
+        return n
+    parent = list(range(n))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    def overlaps(a, b):
+        ax0, ay0, az0, ax1, ay1, az1 = a
+        bx0, by0, bz0, bx1, by1, bz1 = b
+        return (ax0 - slack <= bx1 and bx0 - slack <= ax1
+                and ay0 - slack <= by1 and by0 - slack <= ay1
+                and az0 - slack <= bz1 and bz0 - slack <= az1)
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if overlaps(boxes[i], boxes[j]):
+                ri, rj = find(i), find(j)
+                if ri != rj:
+                    parent[rj] = ri
+    return len({find(i) for i in range(n)})
 
 
 def _axis_dir_key(x: float, y: float, z: float, ndigits: int = 2) -> tuple:
@@ -345,10 +398,21 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
     result = _apply_contour_stage(ctx, step, result, geometry)
 
     # Vertiefte Einzelprüfungen (unabhängig vom Hüllmaß-Urteil)
-    from .geometry_checks import check_hole_pattern, check_mass, check_threads
+    from .geometry_checks import (
+        check_assembly_vs_part, check_hole_pattern, check_mass,
+        check_threads, check_unit_mismatch,
+    )
 
+    unit_error = check_unit_mismatch(ctx, geometry, dims)
     extra = [check_mass(ctx, geometry), check_hole_pattern(ctx, geometry, dims)]
     check_threads(ctx, geometry, dims)
+    check_assembly_vs_part(ctx, geometry)
+    if unit_error:
+        # Bei falscher Einheit sind Hüllmaß-Abweichungen die Folge, nicht die
+        # Ursache – den Maß-Mismatch dann nicht zusätzlich als K.O. melden.
+        ctx.findings = [f for f in ctx.findings if f.code != "GEO.MISMATCH"]
+        result = CompareResult("unsicher", result.summary,
+                               result.detail + " (Einheitenfehler erkannt)")
     if result.verdict == "passt_nicht":
         ctx.add("GEO.MISMATCH",
                 "Geometrie passt nicht zur Zeichnung – vermutlich falsche "
