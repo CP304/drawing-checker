@@ -14,6 +14,8 @@ python -m mockdata.generate                # Mockpakete nach mockdata/out/
 python -m drawing_checker.app --headless --mock mockdata/out \
     --excel mockdata/out/Materialliste_Mock.xlsx --column C
 python -m drawing_checker.app --check-rules   # YAML-Wissenspakete validieren
+python -m drawing_checker.app --sap-import-vbs x.vbs   # Mitschnitt -> Ablauf
+python -m drawing_checker.app --sap-dry-run 10473215   # Ablauf ohne SAP prüfen
 python -m drawing_checker.app --list-rules    # Regelkatalog je Profil
 QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # GUI headless
 ```
@@ -23,10 +25,14 @@ QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # G
 - `core/orchestrator.py` – Ablauf je Materialnummer, Resume-Zustand
   (`core/state.py`), Retries mit SAP-Recovery; erzeugt am Laufende
   HTML-Bericht, findings.csv und Excel-Zusammenfassung.
-- `sap/` – Adapter-Interface; `ymatdocs.py` enthält `# VBS:`-Marker, wo die
-  Element-IDs aus dem .vbs-Mitschnitt der Transaktion eingetragen werden
-  (DER offene Punkt für den SAP-Durchstich). `mock.py` liefert ZIPs aus
-  einem Ordner und kann Abstürze simulieren.
+- `sap/` – Adapter-Interface. Der Transaktionsablauf wird NICHT
+  programmiert: `vbs_parser.py` liest den .vbs-Mitschnitt, `script_flow.py`
+  spielt ihn ab (generische `call`/`set_prop`-Schritte decken auch
+  ALV-Grid-Methoden ab), `ymatdocs.py` klammert Download-Überwachung und
+  Statusauswertung darum. Ablauf-Datei: `regeln/ymatdocs_flow.yaml`.
+  `fake_session.py` simuliert SAP für Tests und `--sap-dry-run`;
+  `mock.py` liefert ZIPs aus einem Ordner und kann Abstürze simulieren.
+  Checkliste für den Durchstich: SAP_DURCHSTICH.md.
 - `drawing/` – PyMuPDF-Textlayer/Rendering, OCR-Fallback, Maßextraktion,
   Änderungsdatum.
 - `checks/` – Regelwerk. Wissen liegt in `rules/*.yaml` (profiles, materials,

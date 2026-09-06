@@ -22,7 +22,9 @@ def build_adapter(config: RunConfig) -> SapAdapter:
         return MockSapAdapter(config.mock_source)
     from .sap.session import SapGuiAdapter
 
-    return SapGuiAdapter(connection_name=config.sap_connection)
+    return SapGuiAdapter(connection_name=config.sap_connection,
+                         flow_path=config.sap_flow,
+                         diagnose_dir=config.output_dir / "sap_diagnose")
 
 
 def main() -> int:
@@ -42,7 +44,34 @@ def main() -> int:
                         help="Wissenspakete (YAML) validieren und beenden")
     parser.add_argument("--list-rules", action="store_true",
                         help="alle Prüfregeln je Profil ausgeben und beenden")
+    sap = parser.add_argument_group("SAP-Durchstich")
+    sap.add_argument("--sap-import-vbs", type=Path, metavar="DATEI",
+                     help="Mitschnitt (.vbs) einlesen und als Ablauf speichern")
+    sap.add_argument("--sap-flow", type=Path, metavar="YAML",
+                     help="bestimmten Ablauf verwenden (sonst Suchpfade)")
+    sap.add_argument("--sap-show-flow", action="store_true",
+                     help="gespeicherten Ablauf anzeigen")
+    sap.add_argument("--sap-dry-run", nargs="?", const="4711",
+                     metavar="MATNR",
+                     help="Ablauf ohne SAP gegen eine simulierte Session prüfen")
+    sap.add_argument("--sap-test", metavar="MATNR",
+                     help="eine Materialnummer echt über SAP holen")
+    sap.add_argument("--sap-dump", action="store_true",
+                     help="Elementbaum des aktuellen SAP-Bildes ausgeben")
     args = parser.parse_args()
+
+    from .sap import cli as sapcli
+
+    if args.sap_import_vbs:
+        return sapcli.import_vbs(args.sap_import_vbs, args.sap_flow)
+    if args.sap_show_flow:
+        return sapcli.show_flow(args.sap_flow)
+    if args.sap_dry_run:
+        return sapcli.dry_run(args.sap_dry_run, args.sap_flow)
+    if args.sap_test:
+        return sapcli.sap_test(args.sap_test, args.system, args.sap_flow)
+    if args.sap_dump:
+        return sapcli.dump_screen(args.system)
 
     if args.list_rules:
         from .checks.base import load_profile, load_profiles_data
@@ -117,7 +146,7 @@ def run_headless(args) -> int:
         material_column=args.column.upper(), header_row=args.header_row,
         output_dir=args.excel.parent / "Ergebnisse",
         material_group=args.profile, sap_connection=args.system,
-        mock_source=args.mock,
+        mock_source=args.mock, sap_flow=args.sap_flow,
     )
     setup_logging(config.output_dir / "logs")
     adapter = build_adapter(config)

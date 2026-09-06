@@ -140,21 +140,39 @@ dort auftauchen.
 (default/guss/schweiss) an-/abschalten, Severities und Toleranzbänder für
 den Geometrieabgleich ändern. Profile erben per `inherit` voneinander.
 
-## TODO für die SAP-Anbindung (sobald der .vbs-Mitschnitt vorliegt)
+## SAP-Anbindung (Durchstich am Einsatztag)
 
-1. **`drawing_checker/sap/ymatdocs.py`**: die mit `# VBS:` markierten
-   Element-IDs durch die echten IDs aus dem Mitschnitt ersetzen
-   (Materialfeld, Ausführen-Button, Download-Button, Datei-Dialog).
-   Struktur, Warte-/Fehlerlogik und Download-Überwachung sind fertig.
-2. **Login klären**: SSO oder Benutzer/Passwort? Bei Passwort: Eintrag
+Der Transaktionsablauf wird **nicht programmiert, sondern aufgezeichnet**:
+der .vbs-Mitschnitt aus SAP wird eingelesen, in einen abspielbaren Ablauf
+übersetzt und mit Platzhaltern (`{material}`, `{target_dir}`, `{filename}`)
+versehen. Vier Schritte:
+
+```bat
+python -m drawing_checker.app --sap-import-vbs ymatdocs.vbs   # 1. einlesen
+python -m drawing_checker.app --sap-dry-run 10473215          # 2. ohne SAP prüfen
+python -m drawing_checker.app --sap-test   10473215           # 3. echt, ein Material
+python -m drawing_checker.app                                 # 4. Dauerlauf (GUI)
+```
+
+Weitere Werkzeuge: `--sap-show-flow` (gespeicherten Ablauf anzeigen),
+`--sap-dump` (Elementbaum des aktuellen SAP-Bildes – liefert die
+Element-IDs), `--sap-flow <yaml>` (abweichender Ablaufpfad).
+
+Die vollständige Checkliste inklusive Aufzeichnung, Handkorrekturen am
+YAML und Fehlerbehebung steht in
+[SAP_DURCHSTICH.md](SAP_DURCHSTICH.md).
+
+Noch offen, unabhängig vom Mitschnitt:
+
+1. **Login klären**: SSO oder Benutzer/Passwort? Bei Passwort: Eintrag
    `drawing-checker/P11` im Windows Credential Manager anlegen
    (`SapWatchdog.store_credentials`), der Watchdog nutzt ihn beim
    automatischen Neustart.
-3. **`SAPLOGON_PATH`** setzen, falls saplogon.exe nicht im Standardpfad
+2. **`SAPLOGON_PATH`** setzen, falls saplogon.exe nicht im Standardpfad
    liegt.
-4. Erster Durchstich mit 2–3 echten Materialnummern, dann Kalibrierung der
-   Checks an echten Zeichnungen (Regel-Severities in `profiles.yaml`).
-5. Auslieferung: `pyinstaller packaging/DrawingChecker.spec` (Windows;
+3. Nach dem Durchstich: Kalibrierung der Checks an echten Zeichnungen
+   (Regel-Severities in `profiles.yaml`).
+4. Auslieferung: `pyinstaller packaging/DrawingChecker.spec` (Windows;
    Wissenspakete werden mitgepackt, Anwender-Ergänzungen kommen in einen
    Ordner `regeln/` neben die .exe).
 

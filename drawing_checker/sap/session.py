@@ -22,10 +22,16 @@ log = logging.getLogger(__name__)
 
 class SapGuiAdapter(SapAdapter):
     def __init__(self, connection_name: str = "P11",
-                 saplogon_path: str | None = None):
+                 saplogon_path: str | None = None,
+                 flow_path: Path | None = None,
+                 diagnose_dir: Path | None = None,
+                 watch_dirs: list[Path] | None = None):
         self.connection_name = connection_name
         self.watchdog = SapWatchdog(connection_name, saplogon_path)
         self.session = None
+        self.flow_path = flow_path
+        self.diagnose_dir = diagnose_dir
+        self.watch_dirs = watch_dirs
 
     # ------------------------------------------------------------- Anbindung
     def ensure_ready(self) -> None:
@@ -89,14 +95,34 @@ class SapGuiAdapter(SapAdapter):
 
         self.ensure_ready()
         try:
-            return run_ymatdocs(self.session, material, target_dir)
+            return self._run(material, target_dir)
         except SapUnavailable:
             # Einmaliger Selbstheilungsversuch: neu verbinden und wiederholen.
             log.warning("Session verloren bei %s – Neuverbindung", material)
+            self._write_diagnosis(material)
             self.session = None
             self.watchdog.recover()
             self.ensure_ready()
-            return run_ymatdocs(self.session, material, target_dir)
+            return self._run(material, target_dir)
+
+    def _run(self, material: str, target_dir: Path) -> Path:
+        from .ymatdocs import run_ymatdocs
+
+        return run_ymatdocs(self.session, material, target_dir,
+                            flow_path=self.flow_path,
+                            watch_dirs=self.watch_dirs)
+
+    def _write_diagnosis(self, material: str) -> None:
+        """Bei technischen Fehlern Elementbaum und Bildschirmfoto sichern."""
+        if self.diagnose_dir is None or self.session is None:
+            return
+        try:
+            from .diagnostics import diagnose_failure
+
+            diagnose_failure(self.session, material, self.diagnose_dir)
+        except Exception:
+            log.debug("Diagnose konnte nicht geschrieben werden",
+                      exc_info=True)
 
     def close(self) -> None:
         self.session = None

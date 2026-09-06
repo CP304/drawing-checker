@@ -127,3 +127,4 @@ class RunConfig:
     material_group: str = "default" # wählt Regel-/Toleranzprofil
     sap_connection: str = "P11"
     mock_source: Path | None = None # gesetzt => MockSapAdapter statt echtem SAP
+    sap_flow: Path | None = None    # importierter .vbs-Ablauf (sonst Suchpfade)

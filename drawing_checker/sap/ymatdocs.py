@@ -1,132 +1,179 @@
 """Transaktionsablauf YMATDOCS: Report ausführen und ZIP-Paket herunterladen.
 
-!!! PORTIERUNGSPUNKT (morgen): Die mit `# VBS:` markierten Stellen werden aus
-dem .vbs-Mitschnitt der Transaktion übernommen. Der Mitschnitt liefert die
-exakten Element-IDs (session.findById(...)-Pfade). Alles Übrige – Warten,
-Fehlerklassifizierung, Download-Handling – ist hier bereits fertig.
+Der Ablauf wird NICHT fest programmiert, sondern aus dem .vbs-Mitschnitt der
+Transaktion importiert und abgespielt (siehe `vbs_parser.py`,
+`script_flow.py`). Damit entfällt das fehleranfällige Abtippen von
+Element-IDs, und ein abweichender Ablauf (zusätzliche Selektionsfelder,
+Layout-Auswahl, Zwischenbilder) funktioniert ohne Codeänderung.
 
-Erwarteter Ablauf laut Prozess:
-  1. /nYMATDOCS starten
-  2. Materialnummer eintragen, ausführen
-  3. Download des Dokumentpakets anstoßen -> SAP-Dateidialog
-  4. Zielpfad setzen, speichern, ggf. "Datei ersetzen" bestätigen
-  5. Warten, bis das ZIP vollständig geschrieben ist
+Ablauf je Materialnummer:
+  1. Ablauf laden (einmalig, aus `regeln/ymatdocs_flow.yaml` bzw. dem über
+     `--sap-flow` angegebenen Pfad).
+  2. Download-Überwachung starten (erwarteter Pfad + Ordner).
+  3. Schritte abspielen, dabei Popups automatisch behandeln.
+  4. Auf die fertige Datei warten und sie an den Zielort verschieben.
+
+Ohne importierten Ablauf greift der eingebaute Standardablauf (die früher
+hartcodierte Variante) – er dient nur als Notnagel und meldet klar, dass
+der Mitschnitt fehlt.
 """
 from __future__ import annotations
 
 import logging
-import time
+import shutil
 from pathlib import Path
 
 from .adapter import MaterialNotFound, SapUnavailable
+from .download import DownloadWatcher, default_watch_dirs
+from .popups import handle_popups
+from .script_flow import FlowError, ScriptFlow, Step, play
 from .session import find_element, wait_ready
 
 log = logging.getLogger(__name__)
 
 DOWNLOAD_TIMEOUT_S = 180
+FLOW_FILENAME = "ymatdocs_flow.yaml"
 
-# ---------------------------------------------------------------------------
-# Element-IDs der Transaktion. Platzhalter, bis der .vbs-Mitschnitt vorliegt.
-# Die IDs unten sind die üblichen Muster eines Selektionsbilds; sie werden
-# beim Portieren durch die echten IDs aus dem .vbs ersetzt.
-# ---------------------------------------------------------------------------
-ID_OK_CODE = "wnd[0]/tbar[0]/okcd"
-ID_MATERIAL_FIELD = "wnd[0]/usr/ctxtP_MATNR"          # VBS: echte Feld-ID einsetzen
-ID_EXECUTE_BTN = "wnd[0]/tbar[1]/btn[8]"              # VBS: prüfen (F8 üblich)
-ID_DOWNLOAD_BTN = "wnd[0]/tbar[1]/btn[13]"            # VBS: echten Button einsetzen
-ID_FILEDLG_PATH = "wnd[1]/usr/ctxtDY_PATH"            # VBS: prüfen
-ID_FILEDLG_NAME = "wnd[1]/usr/ctxtDY_FILENAME"        # VBS: prüfen
-ID_FILEDLG_SAVE = "wnd[1]/tbar[0]/btn[0]"             # VBS: prüfen
-ID_REPLACE_YES = "wnd[2]/usr/btnSPOP-OPTION1"         # "Ersetzen"-Dialog
+# Notnagel-Ablauf, falls kein Mitschnitt importiert wurde. Die IDs sind die
+# üblichen Muster eines Selektionsbilds – sie stimmen fast sicher NICHT mit
+# YMATDOCS überein, liefern aber eine verständliche Fehlermeldung.
+FALLBACK_FLOW = ScriptFlow(
+    name="ymatdocs-fallback",
+    transaction="YMATDOCS",
+    material_field="wnd[0]/usr/ctxtP_MATNR",
+    steps=[
+        Step("start_transaction", value="/nYMATDOCS",
+             comment="Transaktionsstart"),
+        Step("set_text", "wnd[0]/usr/ctxtP_MATNR", "{material}",
+             comment="Materialnummer (Standardannahme)"),
+        Step("send_vkey", "wnd[0]", 8, comment="Ausführen (F8)"),
+        Step("press", "wnd[0]/tbar[1]/btn[13]", optional=True,
+             comment="Download (Standardannahme)"),
+        Step("set_text", "wnd[1]/usr/ctxtDY_PATH", "{target_dir}",
+             optional=True),
+        Step("set_text", "wnd[1]/usr/ctxtDY_FILENAME", "{filename}",
+             optional=True),
+        Step("press", "wnd[1]/tbar[0]/btn[0]", optional=True),
+    ],
+    download_step_index=3,
+    notes="Eingebauter Notnagel – bitte den .vbs-Mitschnitt importieren.",
+)
+
+_flow_cache: dict[str, ScriptFlow] = {}
 
 
-def run_ymatdocs(session, material: str, target_dir: Path) -> Path:
+def flow_search_paths() -> list[Path]:
+    """Orte, an denen der importierte Ablauf gesucht wird."""
+    from ..checks.base import rules_dirs
+
+    paths = [d / FLOW_FILENAME for d in rules_dirs()]
+    paths.append(Path.cwd() / FLOW_FILENAME)
+    return paths
+
+
+def load_flow(explicit: Path | None = None) -> tuple[ScriptFlow, Path | None]:
+    """Lädt den Ablauf; liefert (Ablauf, Quelle) – Quelle None = Notnagel."""
+    candidates = [explicit] if explicit else flow_search_paths()
+    for path in candidates:
+        if path and Path(path).is_file():
+            key = str(path)
+            if key not in _flow_cache:
+                _flow_cache[key] = ScriptFlow.load(Path(path))
+                log.info("SAP-Ablauf geladen: %s (%d Schritte)",
+                         path, len(_flow_cache[key].steps))
+            return _flow_cache[key], Path(path)
+    return FALLBACK_FLOW, None
+
+
+def run_ymatdocs(session, material: str, target_dir: Path, *,
+                 flow_path: Path | None = None,
+                 watch_dirs: list[Path] | None = None,
+                 on_step=None,
+                 timeout_s: float = DOWNLOAD_TIMEOUT_S) -> Path:
     """Führt YMATDOCS für eine Materialnummer aus, liefert den ZIP-Pfad."""
     target_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = target_dir / f"{material}.zip"
-    zip_path.unlink(missing_ok=True)
+    flow, source = load_flow(flow_path)
+    if source is None:
+        log.warning("Kein importierter SAP-Ablauf gefunden – Notnagel aktiv. "
+                    "Mitschnitt mit --sap-import-vbs einlesen!")
 
-    _start_transaction(session)
-    _enter_material_and_execute(session, material)
-    _trigger_download(session, zip_path)
-    _wait_for_file(zip_path, material)
-    return zip_path
+    filename = f"{_safe(material)}.zip"
+    expected = target_dir / filename
+    context = {
+        "material": material,
+        "target_dir": str(target_dir),
+        "filename": filename,
+        "target_path": str(expected),
+    }
 
+    watcher = DownloadWatcher(
+        expected=expected,
+        watch_dirs=list(watch_dirs) if watch_dirs is not None
+        else default_watch_dirs(),
+        timeout_s=timeout_s)
+    watcher.start()
 
-def _start_transaction(session) -> None:
     try:
-        session.FindById(ID_OK_CODE).Text = "/nYMATDOCS"
-        session.FindById("wnd[0]").SendVKey(0)
-    except Exception as exc:
-        raise SapUnavailable(f"Transaktionsstart fehlgeschlagen: {exc}") from exc
-    wait_ready(session)
-    _raise_on_error_status(session, context="Transaktionsstart")
-
-
-def _enter_material_and_execute(session, material: str) -> None:
-    field = find_element(session, ID_MATERIAL_FIELD)
-    if field is None:
-        raise SapUnavailable(
-            f"Materialfeld {ID_MATERIAL_FIELD!r} nicht gefunden – Element-IDs "
-            "aus dem .vbs-Mitschnitt eintragen (sap/ymatdocs.py)")
-    field.Text = material
-    # VBS: falls weitere Selektionsfelder gesetzt werden (Layout, Doku-Typen),
-    # hier ergänzen.
-    session.FindById(ID_EXECUTE_BTN).Press()
-    wait_ready(session, timeout=120)
+        play(session, flow, context,
+             wait_ready=lambda s: wait_ready(s, timeout=120),
+             on_step=on_step,
+             popup_handler=_popup_handler)
+    except FlowError as exc:
+        _raise_flow_error(session, material, exc, source)
 
     status = _status_message(session)
     if status and _looks_like_not_found(status):
         raise MaterialNotFound(f"{material}: {status}")
     _raise_on_error_status(session, context=f"Ausführung für {material}")
 
+    try:
+        downloaded = watcher.wait()
+    except TimeoutError as exc:
+        if status:
+            raise MaterialNotFound(f"{material}: kein Paket ({status})") from exc
+        raise SapUnavailable(str(exc)) from exc
 
-def _trigger_download(session, zip_path: Path) -> None:
-    btn = find_element(session, ID_DOWNLOAD_BTN)
-    if btn is None:
-        raise SapUnavailable(
-            f"Download-Button {ID_DOWNLOAD_BTN!r} nicht gefunden – Element-IDs "
-            "aus dem .vbs-Mitschnitt eintragen (sap/ymatdocs.py)")
-    btn.Press()
-    wait_ready(session)
-
-    # SAP-Dateidialog: Pfad + Dateiname setzen.
-    path_field = find_element(session, ID_FILEDLG_PATH)
-    name_field = find_element(session, ID_FILEDLG_NAME)
-    if name_field is None and path_field is None:
-        raise SapUnavailable("Datei-Dialog nicht erkannt – IDs aus .vbs prüfen")
-    if path_field is not None:
-        path_field.Text = str(zip_path.parent)
-    if name_field is not None:
-        name_field.Text = zip_path.name
-    session.FindById(ID_FILEDLG_SAVE).Press()
-    wait_ready(session)
-
-    replace = find_element(session, ID_REPLACE_YES)
-    if replace is not None:
-        replace.Press()
-        wait_ready(session)
+    if downloaded != expected:
+        log.info("Download lag unter %s – wird nach %s verschoben",
+                 downloaded, expected)
+        shutil.move(str(downloaded), str(expected))
+    return expected
 
 
-def _wait_for_file(zip_path: Path, material: str) -> None:
-    """Wartet, bis das ZIP existiert und die Größe stabil ist."""
-    deadline = time.time() + DOWNLOAD_TIMEOUT_S
-    last_size = -1
-    stable_since: float | None = None
-    while time.time() < deadline:
-        if zip_path.exists():
-            size = zip_path.stat().st_size
-            if size > 0 and size == last_size:
-                if stable_since and time.time() - stable_since >= 1.5:
-                    log.info("%s: ZIP vollständig (%d Bytes)", material, size)
-                    return
-                stable_since = stable_since or time.time()
-            else:
-                stable_since = None
-            last_size = size
-        time.sleep(0.5)
-    raise SapUnavailable(
-        f"{material}: Download nicht abgeschlossen (> {DOWNLOAD_TIMEOUT_S}s)")
+def _popup_handler(session, step) -> int:
+    """Dialoge abräumen – außer dem Fenster, das der Schritt selbst bedient.
+
+    Ohne diese Ausnahme würde der Automat den Speichern-Dialog des
+    Downloads bestätigen, bevor Zielordner und Dateiname eingetragen sind.
+    """
+    return handle_popups(session, skip_windows=_step_windows(step))
+
+
+def _step_windows(step) -> set[str]:
+    element = getattr(step, "element", "") or ""
+    if element.startswith("wnd["):
+        return {element.split("/", 1)[0]}
+    return set()
+
+
+def _raise_flow_error(session, material: str, exc: FlowError,
+                      source: Path | None) -> None:
+    """Ordnet einen Ablauffehler fachlich oder technisch ein."""
+    status = _status_message(session)
+    if status and _looks_like_not_found(status):
+        raise MaterialNotFound(f"{material}: {status}") from exc
+    where = f"aus {source.name}" if source else "aus dem Notnagel-Ablauf"
+    hint = ""
+    if source is None:
+        hint = (" – es ist kein .vbs-Mitschnitt importiert. "
+                "Mit `drawing-checker --sap-import-vbs <datei.vbs>` einlesen.")
+    raise SapUnavailable(f"{material}: {exc} ({where}){hint}") from exc
+
+
+def _safe(material: str) -> str:
+    import re
+
+    return re.sub(r"[^\w.-]", "_", material.strip()) or "unbenannt"
 
 
 # ------------------------------------------------------------------ Status
@@ -150,7 +197,8 @@ def _looks_like_not_found(status: str) -> bool:
     s = status.lower()
     return any(k in s for k in (
         "nicht vorhanden", "existiert nicht", "keine dokumente", "nicht gefunden",
-        "not found", "does not exist", "no documents"))
+        "kein dokument", "keine daten", "no documents", "not found",
+        "does not exist", "no data"))
 
 
 def _raise_on_error_status(session, context: str) -> None:
