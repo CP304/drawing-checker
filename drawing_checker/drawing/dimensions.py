@@ -14,6 +14,7 @@ Erfasst je Maß:
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -158,12 +159,25 @@ def _num_or_none(s) -> float | None:
     return parse_number(s) if s else None
 
 
+# Mindestkonfidenz für Maße aus OCR. Kurze Zahlenschnipsel ("2", "13")
+# sind die häufigste OCR-Halluzination und würden als Maß den
+# Geometrieabgleich verfälschen – deshalb für sie eine höhere Schwelle.
+OCR_DIM_MIN_CONF = float(os.environ.get("DRAWING_CHECKER_OCR_DIM_CONF", 70))
+OCR_SHORT_MIN_CONF = float(os.environ.get("DRAWING_CHECKER_OCR_SHORT_CONF", 85))
+
+
 def extract_dimensions(pdf: DrawingPdf, max_plausible: float = 6000.0
                        ) -> list[DimValue]:
-    """Extrahiert alle Maßkandidaten aus den Wörtern des PDFs."""
+    """Extrahiert alle Maßkandidaten aus den Wörtern des PDFs.
+
+    Bei OCR-Text werden unsichere Funde verworfen (siehe Word.conf) –
+    lieber ein Maß weniger als ein erfundenes.
+    """
     words = pdf.words()
     dims: list[DimValue] = []
     for i, w in enumerate(words):
+        if not _confident_enough(w):
+            continue
         prev = words[i - 1].text.lower().rstrip(".:") if i > 0 else ""
         # Nachbarwörter für Kontextangaben (Tiefe, Grenzabmaße, Faktor)
         nxt = " ".join(x.text for x in words[i + 1:i + 3])
@@ -171,6 +185,15 @@ def extract_dimensions(pdf: DrawingPdf, max_plausible: float = 6000.0
             if 0.05 <= d.value <= max_plausible:
                 dims.append(d)
     return dims
+
+
+def _confident_enough(w: Word) -> bool:
+    conf = getattr(w, "conf", 100.0)
+    if conf >= 100.0:
+        return True
+    limit = (OCR_SHORT_MIN_CONF if len(w.text.strip()) <= 2
+             else OCR_DIM_MIN_CONF)
+    return conf >= limit
 
 
 def _parse_word(w: Word, prev_word: str, next_text: str = "") -> list[DimValue]:

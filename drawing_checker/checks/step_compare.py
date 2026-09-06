@@ -422,7 +422,14 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
         ctx.findings = [f for f in ctx.findings if f.code != "GEO.MISMATCH"]
         result = CompareResult("unsicher", result.summary,
                                result.detail + " (Einheitenfehler erkannt)")
-    if result.verdict == "passt_nicht":
+    if result.verdict == "passt_nicht" and ctx.pdf.ocr_used:
+        # Maße aus OCR sind nicht sicher genug für ein K.O.-Urteil: ein
+        # falsch gelesenes Maß darf keine Zeichnung sperren.
+        ctx.add("GEO.UNCERTAIN",
+                "Geometrie passt rechnerisch nicht – die Maße stammen aber "
+                "aus OCR, deshalb nur als Prüfhinweis",
+                detail=result.detail + " " + ctx.pdf.ocr_note())
+    elif result.verdict == "passt_nicht":
         ctx.add("GEO.MISMATCH",
                 "Geometrie passt nicht zur Zeichnung – vermutlich falsche "
                 "Konfiguration gespeichert", detail=result.detail)

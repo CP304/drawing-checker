@@ -44,6 +44,9 @@ def main() -> int:
                         help="Wissenspakete (YAML) validieren und beenden")
     parser.add_argument("--list-rules", action="store_true",
                         help="alle Prüfregeln je Profil ausgeben und beenden")
+    parser.add_argument("--ocr-check", nargs="?", const="", metavar="PDF",
+                        help="OCR-Installation prüfen (optional an einer "
+                             "Zeichnung vorführen)")
     sap = parser.add_argument_group("SAP-Durchstich")
     sap.add_argument("--sap-import-vbs", type=Path, metavar="DATEI",
                      help="Mitschnitt (.vbs) einlesen und als Ablauf speichern")
@@ -59,6 +62,11 @@ def main() -> int:
     sap.add_argument("--sap-dump", action="store_true",
                      help="Elementbaum des aktuellen SAP-Bildes ausgeben")
     args = parser.parse_args()
+
+    if args.ocr_check is not None:
+        from .drawing.ocr_check import ocr_check
+
+        return ocr_check(Path(args.ocr_check) if args.ocr_check else None)
 
     from .sap import cli as sapcli
 

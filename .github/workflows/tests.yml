@@ -16,8 +16,10 @@ jobs:
           cache: pip
       - name: Qt-Systembibliotheken
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 fonts-dejavu-core
+      - name: OCR (Tesseract mit deutschem Sprachpaket)
+        run: sudo apt-get install -y tesseract-ocr tesseract-ocr-deu
       - name: Abhängigkeiten
-        run: pip install -e .[occ,dev]
+        run: pip install -e .[occ,ocr,dev]
       - name: Wissenspakete validieren
         run: python -m drawing_checker.app --check-rules
       - name: Tests

@@ -263,7 +263,11 @@ class Orchestrator:
                 result.ocr_used = True
                 ctx.add("DOC.OCR",
                         "Zeichnung ohne Textlayer – Prüfung basiert auf OCR "
-                        "(eingeschränkte Zuverlässigkeit)")
+                        "(eingeschränkte Zuverlässigkeit)",
+                        detail=pdf.ocr_note() + ". Unsichere Zahlen werden "
+                               "nicht als Maß übernommen; fehlende Angaben "
+                               "können auch an der Erkennung liegen – bei "
+                               "Beanstandungen die Zeichnung ansehen.")
 
             # Prüfdokumentation: Änderungsdatum + Fertigungsverfahren
             from ..checks.processes import detect_processes

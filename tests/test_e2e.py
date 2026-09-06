@@ -73,8 +73,13 @@ def test_scan_without_text_degrades_gracefully(run):
     r = result(run, "10473218")
     codes = {f.code for f in r.findings}
     assert "DOC.NO_TEXT" in codes or "DOC.OCR" in codes
-    # Keine falschen Schriftfeld-Fehler auf der textlosen Zeichnung
-    assert not any(c.startswith("TB.") for c in codes)
+    # Auf einer per OCR gelesenen Zeichnung darf nichts hart als Fehler
+    # gemeldet werden – Erkennungsfehler sind nicht auszuschließen.
+    from drawing_checker.core.models import Severity
+
+    hart = [f for f in r.findings
+            if f.severity >= Severity.ERROR and f.code not in ("DOC.NO_PDF",)]
+    assert not hart, f"harte Befunde auf OCR-Zeichnung: {[f.code for f in hart]}"
 
 
 def test_missing_package_reported(run):

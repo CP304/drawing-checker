@@ -17,6 +17,9 @@ from ..core.models import BBox
 log = logging.getLogger(__name__)
 
 RENDER_DPI = 200
+# Ab so vielen Zeichen gilt eine Seite als „hat Textlayer". Darunter wird
+# sie als Scan behandelt und per OCR nachgezogen.
+MIN_PAGE_CHARS = 20
 
 
 @dataclass
@@ -30,9 +33,17 @@ class TextBlock:
 
 @dataclass
 class Word:
+    """Ein Wort mit Fundstelle.
+
+    conf ist die OCR-Konfidenz in Prozent; Wörter aus dem Textlayer sind
+    per Definition sicher (100). Die Maßextraktion nutzt den Wert, um
+    unsichere OCR-Schnipsel nicht als Maß zu übernehmen.
+    """
+
     text: str
     bbox: BBox
     page: int
+    conf: float = 100.0
 
 
 class DrawingPdf:
@@ -42,6 +53,8 @@ class DrawingPdf:
         self.path = path
         self.doc = pymupdf.open(path)
         self.ocr_used = False
+        self.ocr_pages: list[int] = []      # 0-basierte Seiten aus OCR
+        self.ocr_conf: float = 0.0          # mittlere Konfidenz in Prozent
         self._words: list[Word] | None = None
         self._blocks: list[TextBlock] | None = None
 
@@ -75,32 +88,65 @@ class DrawingPdf:
             self._extract()
         return self._blocks or []
 
+    def ocr_note(self) -> str:
+        """Kurzbeschreibung der OCR-Güte für Bericht und Finding."""
+        if not self.ocr_used:
+            return ""
+        seiten = ", ".join(str(p + 1) for p in self.ocr_pages)
+        anzahl = sum(1 for w in self.words() if w.conf < 100.0)
+        return (f"OCR auf Seite {seiten}: {anzahl} Wörter, mittlere "
+                f"Erkennungsgüte {self.ocr_conf:.0f} %")
+
     def full_text(self) -> str:
         return "\n".join(b.text for b in self.blocks())
 
     def _extract(self) -> None:
-        self._words, self._blocks = [], []
-        if self.has_text_layer():
-            for pno, page in enumerate(self.doc):
-                for x0, y0, x1, y1, wtext, *_ in page.get_text("words"):
-                    self._words.append(Word(wtext, BBox(x0, y0, x1, y1), pno))
-                for x0, y0, x1, y1, btext, _bno, btype in page.get_text("blocks"):
-                    if btype == 0 and btext.strip():
-                        self._blocks.append(
-                            TextBlock(btext.strip(), BBox(x0, y0, x1, y1), pno)
-                        )
-            return
-        # Kein Textlayer: OCR-Fallback (falls Tesseract verfügbar).
-        from .ocr import ocr_words  # später Import: Tesseract optional
+        """Text je Seite holen; Seiten ohne Textlayer per OCR nachziehen.
 
-        log.warning("%s: kein Textlayer, versuche OCR", self.path.name)
-        words = ocr_words(self.doc)
-        if words is not None:
-            self.ocr_used = True
-            self._words = words
-            self._blocks = _words_to_blocks(words)
+        Gemischte Dokumente sind der Normalfall aus Archiven: Blatt 1 ist
+        ein Scan, Blatt 2 stammt aus dem CAD – oder das Schriftfeld ist
+        Text und die Zeichnung ein eingebettetes Rasterbild. Deshalb wird
+        seitenweise entschieden und beides zusammengeführt, statt das
+        ganze Dokument als „mit" oder „ohne" Textlayer zu behandeln.
+        """
+        self._words, self._blocks = [], []
+        scanned: list[int] = []
+        for pno, page in enumerate(self.doc):
+            text = page.get_text("text").strip()
+            if len(text) >= MIN_PAGE_CHARS:
+                self._read_page_text(pno, page)
+            else:
+                scanned.append(pno)
+
+        if not scanned:
+            return
+        from .ocr import ocr_words        # später Import: Tesseract optional
+
+        if self._words:
+            log.warning("%s: Seite(n) %s ohne Textlayer – OCR nur dafür",
+                        self.path.name,
+                        ", ".join(str(p + 1) for p in scanned))
         else:
-            log.error("%s: kein Textlayer und kein OCR verfügbar", self.path.name)
+            log.warning("%s: kein Textlayer, versuche OCR", self.path.name)
+        words = ocr_words(self.doc, pages=scanned)
+        if words is None:
+            log.error("%s: kein Textlayer und kein OCR verfügbar",
+                      self.path.name)
+            return
+        self.ocr_used = True
+        self.ocr_pages = scanned
+        if words:
+            self.ocr_conf = sum(w.conf for w in words) / len(words)
+        self._words.extend(words)
+        self._blocks.extend(_words_to_blocks(words))
+
+    def _read_page_text(self, pno: int, page) -> None:
+        for x0, y0, x1, y1, wtext, *_ in page.get_text("words"):
+            self._words.append(Word(wtext, BBox(x0, y0, x1, y1), pno))
+        for x0, y0, x1, y1, btext, _bno, btype in page.get_text("blocks"):
+            if btype == 0 and btext.strip():
+                self._blocks.append(
+                    TextBlock(btext.strip(), BBox(x0, y0, x1, y1), pno))
 
     # ------------------------------------------------------------- Rendering
     def render_page(self, page: int = 0, dpi: int = RENDER_DPI) -> "pymupdf.Pixmap":

@@ -134,6 +134,58 @@ Alle 95 Regeln mit Severity, Prüflogik und Normbezug sind in
 Abstimmung mit dem Fachbereich. Ein Test stellt sicher, dass neue Regeln
 dort auftauchen.
 
+## Gescannte Zeichnungen (OCR)
+
+Alte Zeichnungen kommen als Scan ohne Textlayer aus dem Archiv. Der
+OCR-Pfad ist auf technische Zeichnungen zugeschnitten und nicht auf
+Fließtext:
+
+| Maßnahme | Warum |
+|---|---|
+| 400 dpi, Otsu-Binarisierung | Maßtexte sind klein, Scans grau und verrauscht |
+| Schräglagenkorrektur | Archivscans stehen selten gerade |
+| PSM 11 („sparse text") | Zeichnungstext steht verstreut, nicht in Absätzen |
+| Zweiter Durchgang auf dem um 90° gedrehten Bild | findet die Maße an senkrechten Maßlinien; übernommen wird daraus nur, was im Original hochkant steht |
+| Wörterbücher aus | sonst „korrigiert" Tesseract `1.4301` oder `M12` kaputt |
+| Nachkorrektur | `1O0` → `100`, `Ø`/`@` → `⌀`, Strichreste weg |
+| Konfidenz je Wort | unsichere Zahlen werden **nicht** als Maß übernommen |
+
+Gemischte Dokumente (Blatt 1 Scan, Blatt 2 aus dem CAD) werden seitenweise
+behandelt – OCR läuft nur auf den Seiten ohne Textlayer.
+
+Beruht die Prüfung auf OCR, meldet der Checker `DOC.OCR` mit Wortzahl und
+mittlerer Erkennungsgüte, und ein Geometrie-Mismatch wird **nicht** als K.O.
+gewertet, sondern als Prüfhinweis – ein falsch gelesenes Maß darf keine
+Zeichnung sperren.
+
+```bat
+python -m drawing_checker.app --ocr-check                 # Installation prüfen
+python -m drawing_checker.app --ocr-check zeichnung.pdf   # Leseprobe
+```
+
+Windows: Tesseract von der UB-Mannheim-Distribution installieren (Sprachen
+**deu + eng** mitwählen), dann `pip install pytesseract`. Ohne Tesseract
+läuft alles Übrige weiter; gescannte Zeichnungen melden dann `DOC.NO_TEXT`.
+
+Stellschrauben ohne Codeänderung (Umgebungsvariablen):
+`DRAWING_CHECKER_OCR_DPI`, `_MIN_CONF`, `_PSM`, `_ROTATIONS`, `_LANG`,
+`_BINARIZE=0`, `_DESKEW=0`, `_FIX=0`, `_DIM_CONF`, `_SHORT_CONF`.
+
+Die Güte ist messbar: `python -m tools.ocr_bench mockdata/echt_quellen`
+rastert echte Zeichnungen (deren Textlayer die Wahrheit liefert) und misst,
+wie viel die OCR davon zurückgewinnt. Stand der Abstimmung, gemessen an
+neun echten Zeichnungen als 200-dpi-Scan mit Rauschen:
+
+| | Wörter | Maß-Token | Maße gefunden | erfundene Maße | falsche Regelbefunde |
+|---|---|---|---|---|---|
+| vorher (Standard-Tesseract) | 70 % | 45 % | 43/153 | 10 | +11 |
+| jetzt | **84 %** | **61 %** | **74/153** | 17 | **+9** |
+
+Bei schlechten Vorlagen (150 dpi, 1,5° schief) senkt allein die
+Schräglagenkorrektur die falschen Regelbefunde von 33 auf 20. Die
+verbleibenden Fehlbefunde erscheinen dank der Herabstufung nur als
+„Prüfen", nie als Fehler.
+
 ## Gewichtsprüfung
 
 Die Gewichtsangabe wird auf zwei Wegen verifiziert:

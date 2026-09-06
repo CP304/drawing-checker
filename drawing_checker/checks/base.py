@@ -51,6 +51,11 @@ def rules_files(pattern: str) -> list[Path]:
         files.extend(sorted(d.glob(pattern)))
     return files
 
+# Befunde, die nicht vom erkannten Text abhängen und deshalb auch bei
+# OCR-Grundlage ihre volle Härte behalten.
+OCR_INDEPENDENT = {"DOC.NO_PDF", "DOC.NO_TEXT", "DOC.OCR", "GEO.UNIT_MISMATCH",
+                   "GEO.ASSEMBLY"}
+
 SEVERITY_BY_NAME = {
     "info": Severity.INFO,
     "warning": Severity.WARNING,
@@ -161,7 +166,21 @@ class CheckContext:
 
     def add(self, code: str, text: str, *, severity: Severity | None = None,
             bbox=None, page: int = 0, detail: str = "") -> None:
+        """Finding aufnehmen; bei OCR-Grundlage wird die Härte gedeckelt.
+
+        Beruht der Text auf OCR, ist jede Aussage „Angabe fehlt" nur so
+        sicher wie die Erkennung. Solche Befunde werden deshalb auf
+        „Prüfen" heruntergestuft – ausgenommen Befunde, die gar nicht vom
+        Text abhängen (fehlendes PDF im Paket).
+        """
         sev = severity if severity is not None else self.profile.severity(code)
+        if (sev >= Severity.ERROR and code not in OCR_INDEPENDENT
+                and getattr(self.pdf, "ocr_used", False)):
+            sev = Severity.WARNING
+            detail = (detail + " " if detail else "") + (
+                "Herabgestuft: die Zeichnung wurde per OCR gelesen, ein "
+                "Erkennungsfehler ist nicht auszuschließen – am Original "
+                "prüfen.")
         self.findings.append(
             Finding(code=code, severity=sev, text=text, bbox=bbox, page=page, detail=detail)
         )

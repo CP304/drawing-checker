@@ -17,6 +17,8 @@ python -m drawing_checker.app --check-rules   # YAML-Wissenspakete validieren
 python -m drawing_checker.app --sap-import-vbs x.vbs   # Mitschnitt -> Ablauf
 python -m drawing_checker.app --sap-dry-run 10473215   # Ablauf ohne SAP prüfen
 python -m drawing_checker.app --list-rules    # Regelkatalog je Profil
+python -m drawing_checker.app --ocr-check [x.pdf]  # OCR prüfen/vorführen
+python -m tools.ocr_bench mockdata/echt_quellen    # OCR-Güte messen
 QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # GUI headless
 ```
 
@@ -33,8 +35,12 @@ QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # G
   `fake_session.py` simuliert SAP für Tests und `--sap-dry-run`;
   `mock.py` liefert ZIPs aus einem Ordner und kann Abstürze simulieren.
   Checkliste für den Durchstich: SAP_DURCHSTICH.md.
-- `drawing/` – PyMuPDF-Textlayer/Rendering, OCR-Fallback, Maßextraktion,
-  Änderungsdatum.
+- `drawing/` – PyMuPDF-Textlayer/Rendering, Maßextraktion, Änderungsdatum.
+  `ocr.py` ist auf Zeichnungen getrimmt (400 dpi, Otsu, Deskew, PSM 11,
+  90°-Durchgang für gedrehte Maßtexte, Wörterbücher aus, Nachkorrektur);
+  jedes `Word` trägt eine Konfidenz, unsichere Zahlen werden kein Maß.
+  Seitenweise: OCR nur für Seiten ohne Textlayer. Einstellungen über
+  `DRAWING_CHECKER_OCR_*`; Güte messbar mit `tools/ocr_bench.py`.
 - `checks/` – Regelwerk. Wissen liegt in `rules/*.yaml` (profiles, materials,
   norms) – NIE fachliche Listen im Code hartkodieren; YAML erweitern und
   `--check-rules` laufen lassen. Externe Overlays: Ordner `regeln/` neben
