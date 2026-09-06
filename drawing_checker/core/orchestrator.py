@@ -278,6 +278,12 @@ class Orchestrator:
                 check_language(ctx)
                 dims = extract_dimensions(
                     pdf, float(self.profile.params.get("max_plausible_dim", 6000)))
+                # Tiefenprüfungen auf Basis der extrahierten Maße
+                from ..checks.dimension_checks import run_dimension_checks
+                from ..checks.gps_checks import run_gps_checks
+
+                run_gps_checks(ctx, dims)
+                run_dimension_checks(ctx, dims)
             result.step_summary = check_step(ctx, dims)
 
             result.findings = ctx.findings

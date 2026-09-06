@@ -146,6 +146,18 @@ class CheckContext:
     package: PackageContent
     profile: RuleProfile
     findings: list[Finding] = field(default_factory=list)
+    _frames: list | None = field(default=None, repr=False)
+
+    @property
+    def feature_frames(self) -> list:
+        """Grafisch erkannte Toleranzrahmen (einmalig ermittelt)."""
+        if self._frames is None:
+            from ..drawing.fcf import find_feature_frames
+            try:
+                self._frames = find_feature_frames(self.pdf)
+            except Exception:  # Stub-PDFs in Tests haben kein doc
+                self._frames = []
+        return self._frames
 
     def add(self, code: str, text: str, *, severity: Severity | None = None,
             bbox=None, page: int = 0, detail: str = "") -> None:

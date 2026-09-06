@@ -69,3 +69,46 @@ def extract_revision_date(pdf) -> str:
             if date:
                 return f"{date.isoformat()} (PDF-Metadatum)"
     return ""
+
+
+# --------------------------------------------------------------------------
+# Gewichtsangabe aus dem Schriftfeld
+# --------------------------------------------------------------------------
+RE_WEIGHT = re.compile(
+    r"(\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|g|t)\b(?!\w)", re.IGNORECASE)
+# Zeilen, in denen eine Masseangabe erwartet wird (verhindert Treffer auf
+# Werkstoffnamen o. Ä.).
+RE_WEIGHT_LABEL = re.compile(
+    r"gewicht|masse\b|weight|mass\b", re.IGNORECASE)
+_TO_KG = {"kg": 1.0, "g": 0.001, "t": 1000.0}
+
+
+def extract_weight_kg(pdf) -> float | None:
+    """Masseangabe der Zeichnung in kg; None wenn keine gefunden.
+
+    Bevorzugt Angaben in Textblöcken mit Gewichts-Label (Schriftfeld);
+    fällt sonst auf die erste plausible Einheiten-Angabe zurück.
+    """
+    labelled: list[float] = []
+    loose: list[float] = []
+    for block in pdf.blocks():
+        has_label = bool(RE_WEIGHT_LABEL.search(block.text))
+        for value, unit in RE_WEIGHT.findall(block.text):
+            kg = _to_kg(value, unit)
+            if kg is None:
+                continue
+            (labelled if has_label else loose).append(kg)
+    for pool in (labelled, loose):
+        if pool:
+            return max(pool)
+    return None
+
+
+def _to_kg(value: str, unit: str) -> float | None:
+    try:
+        v = float(value.replace(",", "."))
+    except ValueError:
+        return None
+    kg = v * _TO_KG[unit.lower()]
+    # Plausibilitätsfenster: 1 g bis 50 t
+    return kg if 0.001 <= kg <= 50000 else None

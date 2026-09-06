@@ -31,6 +31,12 @@ class StepGeometry:
     obb_dims: tuple[float, float, float]      # Kantenlängen der OBB, absteigend
     volume: float | None = None               # mm³ (nur OCC)
     cylinder_diameters: list[float] = field(default_factory=list)  # nur OCC
+    # Bohrbild aus dem Modell: {Durchmesser: Anzahl} – getrennt nach
+    # Innenzylindern (Bohrungen) und Außenzylindern (Wellen/Zapfen).
+    holes: dict[float, int] = field(default_factory=dict)
+    shafts: dict[float, int] = field(default_factory=dict)
+    planar_faces: int = 0
+    face_count: int = 0
     backend: str = "fallback"
     point_count: int = 0
 
@@ -38,6 +44,12 @@ class StepGeometry:
     def diagonal(self) -> float:
         a, b, c = self.obb_dims
         return (a * a + b * b + c * c) ** 0.5
+
+    def mass_kg(self, density_g_cm3: float) -> float | None:
+        """Masse aus Volumen und Werkstoffdichte (g/cm³) in kg."""
+        if not self.volume or density_g_cm3 <= 0:
+            return None
+        return self.volume / 1000.0 * density_g_cm3 / 1000.0
 
 
 class StepError(Exception):
@@ -83,19 +95,78 @@ def _analyze_occ(path: Path) -> StepGeometry:
     BRepGProp.VolumeProperties_s(shape, props)
     volume = max(props.Mass(), 0.0)
 
-    diameters: set[float] = set()
+    # Zylinderflächen einsammeln und zu physischen Bohrungen/Zapfen
+    # zusammenfassen: mehrere Teilflächen derselben Achse gehören zusammen.
+    from OCP.GeomAbs import GeomAbs_Plane
+    from OCP.TopAbs import TopAbs_REVERSED
+
+    cylinders: dict[tuple, dict] = {}
+    planar = 0
+    n_faces = 0
     exp = TopExp_Explorer(shape, TopAbs_FACE)
     while exp.More():
         face = TopoDS.Face(exp.Current())
+        n_faces += 1
         surf = BRepAdaptor_Surface(face)
-        if surf.GetType() == GeomAbs_Cylinder:
-            diameters.add(round(2 * surf.Cylinder().Radius(), 2))
+        stype = surf.GetType()
+        if stype == GeomAbs_Plane:
+            planar += 1
+        elif stype == GeomAbs_Cylinder:
+            cyl = surf.Cylinder()
+            radius = cyl.Radius()
+            ax = cyl.Axis()
+            d, loc = ax.Direction(), ax.Location()
+            # Achsschlüssel: Richtung (vorzeichenneutral) + Aufpunkt, auf die
+            # Ebene senkrecht zur Achse projiziert -> identisch für alle
+            # Teilflächen derselben Bohrung.
+            dir_key = _axis_dir_key(d.X(), d.Y(), d.Z())
+            perp = _perp_offset((loc.X(), loc.Y(), loc.Z()),
+                                (d.X(), d.Y(), d.Z()))
+            key = (round(radius, 2), dir_key, perp)
+            entry = cylinders.setdefault(
+                key, {"radius": radius, "inner": 0, "outer": 0})
+            if face.Orientation() == TopAbs_REVERSED:
+                entry["inner"] += 1
+            else:
+                entry["outer"] += 1
         exp.Next()
 
+    holes: dict[float, int] = {}
+    shafts: dict[float, int] = {}
+    for entry in cylinders.values():
+        dia = round(2 * entry["radius"], 2)
+        target = holes if entry["inner"] >= entry["outer"] else shafts
+        target[dia] = target.get(dia, 0) + 1
+
+    diameters = sorted({*holes, *shafts}, reverse=True)
     return StepGeometry(
-        obb_dims=dims, volume=volume,
-        cylinder_diameters=sorted(diameters, reverse=True), backend="occ",
+        obb_dims=dims, volume=volume, cylinder_diameters=diameters,
+        holes=holes, shafts=shafts, planar_faces=planar, face_count=n_faces,
+        backend="occ",
     )
+
+
+def _axis_dir_key(x: float, y: float, z: float, ndigits: int = 2) -> tuple:
+    """Richtungsschlüssel ohne Vorzeichen (Achse ±d ist dieselbe Achse)."""
+    v = (x, y, z)
+    # Vorzeichen an der ersten signifikanten Komponente normieren
+    for c in v:
+        if abs(c) > 1e-9:
+            if c < 0:
+                v = (-x, -y, -z)
+            break
+    return tuple(round(c, ndigits) for c in v)
+
+
+def _perp_offset(point: tuple, direction: tuple, ndigits: int = 1) -> tuple:
+    """Aufpunkt der Achse, senkrecht zur Achsrichtung projiziert."""
+    px, py, pz = point
+    dx, dy, dz = direction
+    norm = (dx * dx + dy * dy + dz * dz) ** 0.5 or 1.0
+    dx, dy, dz = dx / norm, dy / norm, dz / norm
+    t = px * dx + py * dy + pz * dz
+    return (round(px - t * dx, ndigits), round(py - t * dy, ndigits),
+            round(pz - t * dz, ndigits))
 
 
 RE_CARTESIAN = re.compile(
@@ -272,6 +343,12 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
 
     result = compare_step_to_drawing(geometry, dims, ctx.profile)
     result = _apply_contour_stage(ctx, step, result, geometry)
+
+    # Vertiefte Einzelprüfungen (unabhängig vom Hüllmaß-Urteil)
+    from .geometry_checks import check_hole_pattern, check_mass, check_threads
+
+    extra = [check_mass(ctx, geometry), check_hole_pattern(ctx, geometry, dims)]
+    check_threads(ctx, geometry, dims)
     if result.verdict == "passt_nicht":
         ctx.add("GEO.MISMATCH",
                 "Geometrie passt nicht zur Zeichnung – vermutlich falsche "
@@ -284,4 +361,4 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
         ctx.add("GEO.NO_DIMS",
                 "Keine Maße aus der Zeichnung extrahierbar (Geometrieabgleich "
                 "nur eingeschränkt möglich)")
-    return result.summary
+    return " | ".join([result.summary, *[e for e in extra if e]])

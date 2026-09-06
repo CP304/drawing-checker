@@ -15,6 +15,20 @@ profiles:
       max_plausible_dim: 6000
       # Höchstzahl markierter Sprach-Findings im Bild (Rest wird aggregiert).
       max_language_markers: 12
+      # Masseabgleich Zeichnung vs. Modell (Prozent Abweichung).
+      mass_warn_pct: 15
+      mass_error_pct: 40
+      # Durchmessertoleranz beim Bohrbildabgleich (mm).
+      hole_dia_tol: 0.6
+      thread_core_tol: 0.8
+      # Bemaßung / Fertigung
+      chain_epsilon: 0.05        # Toleranz beim Maßketten-Summenvergleich (mm)
+      chain_line_tol: 8.0        # max. Versatz quer zur Maßlinie (PDF-Punkte)
+      tight_tol_mm: 0.01         # ab hier gilt eine Toleranz als sehr eng
+      tight_tol_it: 5            # bzw. ab diesem IT-Grad
+      max_tight_tol_markers: 5
+      deep_hole_ratio: 5.0       # Tiefe/Durchmesser
+      fine_ra_limit: 0.4         # Ra darunter braucht Feinbearbeitung
     rules:
       # --- Schriftfeld / Title Block (ISO 7200) --------------------------------
       TB.DRAWNO:    {enabled: true, severity: error,
@@ -35,6 +49,20 @@ profiles:
       GPS.DATUM:      {enabled: true, severity: error}    # Lagetoleranz ohne Bezug
       GPS.FORM_WITH_DATUM:   {enabled: true, severity: error}   # Formtoleranz MIT Bezug (Widerspruch)
       GPS.DEPRECATED_SYMBOL: {enabled: true, severity: warning} # ◎/⌯ (ASME 2018 gestrichen)
+      GPS.ENVELOPE:        {enabled: true, severity: warning}  # Passung ohne Hüllbedingung Ⓔ
+      GPS.DATUM_UNDEFINED: {enabled: true, severity: error}    # Bezug referenziert, nicht definiert
+      GPS.DATUM_UNUSED:    {enabled: true, severity: warning}  # Bezug definiert, nie verwendet
+      GPS.POSITION_NO_TED: {enabled: true, severity: warning}  # Position ohne theoretisch genaue Maße
+      GPS.MOD_ON_FORM:     {enabled: true, severity: error}    # Ⓜ/Ⓛ an Formtoleranz
+      GPS.ZONE_NO_DATUM:   {enabled: true, severity: error}    # ⌀-Toleranzzone ohne Bezug
+      DOC.GDT_GRAPHIC:     {enabled: true, severity: info}     # GD&T nur als Grafik lesbar
+      # --- Bemaßung und Fertigungsgerechtigkeit -------------------------------
+      DIM.CHAIN:           {enabled: true, severity: warning}  # geschlossene Maßkette
+      MFG.TIGHT_TOL:       {enabled: true, severity: warning}  # Kostentreiber enge Toleranz
+      MFG.DEEP_HOLE:       {enabled: true, severity: warning}  # Tiefe/Durchmesser > 5
+      MFG.SHARP_CORNER:    {enabled: true, severity: warning}  # R0 / scharfe Innenecke
+      SURF.UNREALISTIC:       {enabled: true, severity: error}   # Ra feiner als Verfahren liefert
+      SURF.UNREALISTIC_MINOR: {enabled: true, severity: warning} # sehr feine Ra ohne Verfahren
       # --- Oberflächen und Kanten ---------------------------------------------
       SURF.ROUGHNESS: {enabled: true, severity: warning}  # Ra/Rz bzw. ISO 21920/1302
       SURF.EDGES:     {enabled: true, severity: warning}  # ISO 13715
@@ -77,6 +105,12 @@ profiles:
       GEO.MISMATCH:   {enabled: true, severity: blocker}
       GEO.UNCERTAIN:  {enabled: true, severity: warning}
       GEO.NO_DIMS:    {enabled: true, severity: warning}
+      # Vertiefte Geometrie: Masse, Bohrbild, Gewinde
+      GEO.MASS:        {enabled: true, severity: error}    # Gewicht vs. Volumen×Dichte
+      GEO.MASS_MINOR:  {enabled: true, severity: warning}  # moderate Massenabweichung
+      GEO.HOLE_COUNT:  {enabled: true, severity: error}    # 4×⌀18 fehlt im Modell
+      GEO.HOLE_COUNT_MINOR: {enabled: true, severity: warning}
+      GEO.THREAD:      {enabled: true, severity: warning}  # Gewinde ohne Kernloch
       # Ausbaustufe: Konturprojektion (STEP-Silhouetten vs. PDF-Ansichten).
       # Schärft das Maß-Urteil (bestätigt "unsicher" bzw. stuft "passt" bei
       # klarem Widerspruch herab). Bei Bedarf hier abschaltbar.
@@ -87,6 +121,9 @@ profiles:
   guss:
     inherit: default
     step_tolerance: {rel: 0.12, abs: 6.0}
+    params:
+      mass_warn_pct: 25
+      mass_error_pct: 60
     rules:
       GEO.MISMATCH: {enabled: true, severity: warning}
       CAST.TOL:     {enabled: true, severity: error}
@@ -95,6 +132,9 @@ profiles:
   schweiss:
     inherit: default
     step_tolerance: {rel: 0.08, abs: 4.0}
+    params:
+      mass_warn_pct: 20
+      mass_error_pct: 50
     rules:
       GEO.MISMATCH: {enabled: true, severity: warning}
       WELD.QUALITY: {enabled: true, severity: error}

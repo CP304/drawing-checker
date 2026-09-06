@@ -60,6 +60,22 @@ liegen neben den mitgelieferten und überstehen Updates des Tools.
 - Regex-Tippfehler in den YAMLs fallen beim Start auf (Validierung beim Laden)
   und brechen den Lauf nicht stumm ab.
 
+## Grenzen, die man kennen muss
+
+- **GD&T-Symbole** liegen in vielen CAD-PDFs nicht im Textlayer (Grafik oder
+  Symbolschrift). Der Checker erkennt Toleranzrahmen geometrisch und prüft
+  Werte und Bezüge; die Toleranzart (Position, Ebenheit, Rundlauf …) meldet
+  er als sichtprüfungspflichtig (`DOC.GDT_GRAPHIC`).
+- **Theoretisch genaue Maße** (eingerahmt) sind im Textlayer oft nicht von
+  normalen Maßen unterscheidbar – `GPS.POSITION_NO_TED` ist deshalb eine
+  Warnung mit Sichtprüfungshinweis, kein harter Fehler.
+- **Maßketten** werden nur gemeldet, wenn die Maße auf einer gemeinsamen
+  Maßlinie nebeneinander liegen. Ohne diese räumliche Prüfung liefert die
+  reine Zahlensuche auf maßreichen Zeichnungen Zufallstreffer.
+- **Masseabgleich** setzt eine Gewichtsangabe im Schriftfeld und eine
+  bekannte Werkstoffdichte voraus; Rohteilgewichte weichen bei Guss- und
+  Schweißteilen systematisch ab (Toleranz je Profil einstellbar).
+
 ## Grundsätze
 
 - **Konservativ formulieren:** Muster so eng, dass sie nur den gemeinten Fall

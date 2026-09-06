@@ -73,6 +73,21 @@ python -m pytest tests/ -q            # inkl. End-to-End über die Mockdaten
 Der End-to-End-Test simuliert auch einen SAP-Absturz (Mock) und den
 Resume-Pfad.
 
+## Geometrieprüfung im Detail
+
+Der Abgleich Zeichnung ↔ STEP läuft über vier unabhängige Indizien, damit
+eine falsch gespeicherte Konfiguration auch dann auffällt, wenn ein
+Einzelkriterium unscharf ist:
+
+1. **Hüllmaße** – größte Zeichnungsmaße vs. optimale Bounding-Box des
+   Modells, plus Raumdiagonalen-Prüfung (K.O.-Kriterium).
+2. **Masse** – Gewichtsangabe im Schriftfeld vs. STEP-Volumen × Dichte des
+   erkannten Werkstoffs (Dichten stehen in `rules/materials.yaml`).
+3. **Bohrbild** – explizite Mehrfachangaben („4×⌀18") vs. tatsächlich im
+   Modell vorhandene Bohrungen; Bohrungen und Außenzylinder werden über
+   Flächenorientierung und Achslage unterschieden und je Achse gruppiert.
+4. **Konturprojektion** (s. u.) als bestätigende Stufe.
+
 ## Ausbaustufe Konturprojektion
 
 Zusätzlich zum Maßabgleich projiziert das Tool das STEP-Modell aus den drei
@@ -83,6 +98,15 @@ Der Kontur-Score schärft das Urteil konservativ: Er bestätigt ein „unsicher�
 (→ passt) bzw. stuft ein „passt“ bei klarem Widerspruch auf „unsicher“ herab –
 ein „passt nicht“ des Maßabgleichs bleibt immer bestehen. Abschaltbar über
 Regel `GEO.CONTOUR` in `profiles.yaml`; benötigt das OCC-Backend.
+
+## GD&T auf realen CAD-Zeichnungen
+
+Toleranzrahmen werden von CAD-Systemen meist als **Vektorgrafik** gezeichnet:
+Im Textlayer stehen nur Toleranzwert und Bezugsbuchstaben, das Symbol fehlt.
+Das Tool erkennt die Rahmen deshalb geometrisch (`drawing/fcf.py`) und wertet
+Wert und Bezüge aus. Die Art der Toleranz bleibt unbekannt – dafür meldet der
+Checker `DOC.GDT_GRAPHIC` als Hinweis auf eine nötige Sichtprüfung, statt
+stillschweigend nichts zu prüfen.
 
 ## Regelkatalog anpassen
 

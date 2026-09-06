@@ -7,11 +7,13 @@ Die Zeichnungen sind vektorbasiert (A3, Rahmen, Schriftfeld nach ISO 7200,
 mehrere Ansichten, Maßketten, Symbolik) und enthalten gezielt eingebaute
 Fehler:
 
-  10473215  Schweißkonsole   – deutsche Anmerkungen, ISO 5817 ohne Gruppe,
-                               Kantenzustand fehlt; STEP passt.
+  10473215  Schweißkonsole   – Werkstoff 1.4305 trotz Schweißnähten,
+                               deutsche Anmerkungen, ISO 5817 ohne Gruppe;
+                               STEP passt (inkl. Bohrbild 4x18 und Masse).
   10473216  Gussgehäuse      – keine Allgemeintoleranz, Projektionsmethode
                                fehlt; STEP ist die FALSCHE Konfiguration
-                               (kürzeres Gehäuse) -> Geometrie-K.O.
+                               (kürzeres Gehäuse) -> Geometrie-K.O., zusätzlich
+                               Massenabweichung als unabhängiges Indiz.
   10473217  Antriebswelle    – sauber zweisprachig, vollständig; STEP passt.
   10473218  Antriebswelle    – nur gescannt (kein Textlayer), kein STEP.
 
@@ -278,7 +280,7 @@ def draw_weld_bracket(path: Path):
     s.title_block(
         drawno="DRW-10473215-B", title_de="Schweißkonsole",
         title_en="Welded bracket", material="1.4305",
-        weight="18,4 kg", scale="1:2.5")
+        weight="10,4 kg", scale="1:2.5")
     s.text(15, 15, "10473215", size=9, bold=True)
     s.save(path)
 
@@ -380,11 +382,11 @@ def draw_shaft(path: Path):
     s.dim_h(X(260), X(350), Y(-35), y0, "90")
     s.dim_h(X(350), X(420), Y(-35), y0, "70")
     s.dim_h(X(0), X(420), Y(-35), Y(-52), "420 ±0,2")
-    s.leader(X(40), Y(20), X(20), Y(55), "⌀40 k6")
-    s.leader(X(140), Y(27.5), X(120), Y(62), "⌀55 h6")
+    s.leader(X(40), Y(20), X(20), Y(55), "⌀40 k6 (E)")
+    s.leader(X(140), Y(27.5), X(120), Y(62), "⌀55 h6 (E)")
     s.leader(X(230), Y(35), X(215), Y(68), "⌀70")
-    s.leader(X(300), Y(27.5), X(330), Y(62), "⌀55 h6")
-    s.leader(X(390), Y(22.5), X(400), Y(55), "⌀45 k6")
+    s.leader(X(300), Y(27.5), X(330), Y(62), "⌀55 h6 (E)")
+    s.leader(X(390), Y(22.5), X(400), Y(55), "⌀45 k6 (E)")
     s.leader(X(240), Y(8), X(280), Y(30), "Passfeder 16×10 / key 16×10")
 
     # Detailansicht Nut
@@ -403,6 +405,7 @@ def draw_shaft(path: Path):
     s.notes(30, 250, [
         "Allgemeintoleranzen / General tolerances: ISO 2768-fH",
         "Tolerierung nach / Tolerancing per ISO 8015",
+        "Hüllbedingung (E) an Lagersitzen / envelope requirement on seats",
         "Kanten / Edges: ISO 13715 -0,3",
         "Oberfläche / Surface: Ra 1,6, Lagersitze / bearing seats Ra 0,8",
         "Maße in mm / Dimensions in mm",
@@ -411,7 +414,7 @@ def draw_shaft(path: Path):
     s.title_block(
         drawno="DRW-10473217-C", title_de="Antriebswelle",
         title_en="Drive shaft", material="42CrMo4 +QT",
-        weight="9,8 kg", scale="1:2")
+        weight="7,4 kg", scale="1:2")
     s.text(15, 15, "10473217", size=9, bold=True)
     s.save(path)
 
@@ -430,14 +433,28 @@ def _export_step(shape, path: Path):
 
 
 def make_step_bracket(path: Path):
-    """Schweißkonsole passend zur Zeichnung (320 × 120 × 205)."""
-    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
-    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
-    from OCP.gp import gp_Pnt
+    """Schweißkonsole passend zur Zeichnung (320 × 120 × 205).
+
+    Inklusive des Bohrbilds der Zeichnung: 4×⌀18 in der Grundplatte und
+    die Kopfbohrung ⌀22 im Steg – damit prüft der Bohrbildabgleich echt.
+    """
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder
+    from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
 
     base = BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), 320, 120, 25).Shape()
     web = BRepPrimAPI_MakeBox(gp_Pnt(150, 0, 25), 20, 120, 180).Shape()
     shape = BRepAlgoAPI_Fuse(base, web).Shape()
+    # 4×⌀18 Befestigungsbohrungen (Raster 240 × 60)
+    for bx in (40, 280):
+        for by in (30, 90):
+            hole = BRepPrimAPI_MakeCylinder(
+                gp_Ax2(gp_Pnt(bx, by, -1), gp_Dir(0, 0, 1)), 9.0, 27).Shape()
+            shape = BRepAlgoAPI_Cut(shape, hole).Shape()
+    # Kopfbohrung ⌀22 quer durch den Steg
+    head = BRepPrimAPI_MakeCylinder(
+        gp_Ax2(gp_Pnt(160, -1, 180), gp_Dir(0, 1, 0)), 11.0, 122).Shape()
+    shape = BRepAlgoAPI_Cut(shape, head).Shape()
     _export_step(shape, path)
 
 

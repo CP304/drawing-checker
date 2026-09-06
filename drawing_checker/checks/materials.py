@@ -47,6 +47,7 @@ class Material:
     # Praxisfall: falsche Legierung fürs Eloxieren gewählt (Si-/Cu-haltig).
     anodize_quality: str = ""
     castable: bool = False
+    density: float | None = None   # g/cm³ – für den Masseabgleich
     note: str = ""
 
 
@@ -68,6 +69,7 @@ def _load_materials() -> list[Material]:
                     anodize=bool(e.get("anodize", False)),
                     anodize_quality=str(e.get("anodize_quality", "") or ""),
                     castable=bool(e.get("castable", False)),
+                    density=(float(e["density"]) if e.get("density") else None),
                     note=e.get("note", ""),
                 ))
             except (KeyError, TypeError, re.error) as exc:
