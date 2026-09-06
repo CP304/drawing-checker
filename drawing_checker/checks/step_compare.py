@@ -138,6 +138,7 @@ class CompareResult:
     verdict: str            # "passt" | "passt_nicht" | "unsicher"
     summary: str            # menschenlesbare Vergleichswerte (für Excel)
     detail: str = ""
+    main_ok: bool = False   # größtes Zeichnungsmaß passt zur größten OBB-Kante
 
 
 def _tol(profile, value: float) -> float:
@@ -204,15 +205,55 @@ def compare_step_to_drawing(
         return CompareResult(
             "passt_nicht", summary,
             f"Zeichnungsmaß(e) {', '.join(f'{v:g}' for v in oversized)} mm größer "
-            f"als die STEP-Raumdiagonale ({diag:.1f} mm). " + detail)
+            f"als die STEP-Raumdiagonale ({diag:.1f} mm). " + detail,
+            main_ok=main_ok)
     # Hinweis: Zwischenmaße (Absatzlängen, Lochabstände) finden naturgemäß
     # keine OBB-Entsprechung – deshalb genügt neben dem Hauptmaß eine
     # moderate Zuordnungsquote für "passt".
     if main_ok and ratio >= 0.3:
-        return CompareResult("passt", summary, detail)
+        return CompareResult("passt", summary, detail, main_ok=True)
     if not main_ok and ratio < 0.34:
-        return CompareResult("passt_nicht", summary, detail)
-    return CompareResult("unsicher", summary, detail)
+        return CompareResult("passt_nicht", summary, detail, main_ok=False)
+    return CompareResult("unsicher", summary, detail, main_ok=main_ok)
+
+
+def _apply_contour_stage(ctx: CheckContext, step: Path, result: CompareResult,
+                         geometry: StepGeometry) -> CompareResult:
+    """Ausbaustufe Konturprojektion: schärft das Maß-Urteil, ersetzt es nicht.
+
+    * "unsicher" + klar guter Kontur-Score + Hauptmaß ok  -> "passt"
+    * "passt"    + klar schlechter Kontur-Score           -> "unsicher"
+    * "passt_nicht" bleibt immer bestehen.
+    Läuft nur mit OCC-Backend und wenn GEO.CONTOUR im Profil aktiv ist.
+    """
+    if not ctx.profile.enabled("GEO.CONTOUR") or geometry.backend != "occ":
+        return result
+    if result.verdict == "passt_nicht":
+        return result
+    try:
+        from .contour_projection import SCORE_BAD, SCORE_GOOD, compare_contours
+
+        contour = compare_contours(ctx.pdf, step)
+    except ImportError:
+        return result
+    except Exception as exc:
+        log.warning("Konturprojektion fehlgeschlagen für %s: %s", step.name, exc)
+        return result
+    if contour.views_used == 0:
+        return result
+
+    summary = result.summary + (
+        f" | Kontur-Score {contour.score:.2f} ({contour.views_used} Ansichten)")
+    detail = result.detail + " " + contour.detail
+    verdict = result.verdict
+    if verdict == "unsicher" and contour.score >= SCORE_GOOD and result.main_ok:
+        verdict = "passt"
+        detail += " Konturprojektion bestätigt die Zuordnung."
+    elif verdict == "passt" and contour.score <= SCORE_BAD:
+        verdict = "unsicher"
+        detail += (" Konturprojektion widerspricht trotz passender Maße – "
+                   "bitte Sichtprüfung.")
+    return CompareResult(verdict, summary, detail, main_ok=result.main_ok)
 
 
 def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
@@ -230,6 +271,7 @@ def check_step(ctx: CheckContext, dims: list[DimValue]) -> str:
         return ""
 
     result = compare_step_to_drawing(geometry, dims, ctx.profile)
+    result = _apply_contour_stage(ctx, step, result, geometry)
     if result.verdict == "passt_nicht":
         ctx.add("GEO.MISMATCH",
                 "Geometrie passt nicht zur Zeichnung – vermutlich falsche "

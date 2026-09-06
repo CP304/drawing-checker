@@ -73,6 +73,17 @@ python -m pytest tests/ -q            # inkl. End-to-End über die Mockdaten
 Der End-to-End-Test simuliert auch einen SAP-Absturz (Mock) und den
 Resume-Pfad.
 
+## Ausbaustufe Konturprojektion
+
+Zusätzlich zum Maßabgleich projiziert das Tool das STEP-Modell aus den drei
+Hauptachsenrichtungen als Silhouette (OpenCascade HLR) und vergleicht sie
+rotations-/spiegelinvariant mit den aus dem PDF extrahierten Ansichten
+(Vektorlinien, ISO-128-Linienbreitenfilter trennt Kontur- von Maßlinien).
+Der Kontur-Score schärft das Urteil konservativ: Er bestätigt ein „unsicher“
+(→ passt) bzw. stuft ein „passt“ bei klarem Widerspruch auf „unsicher“ herab –
+ein „passt nicht“ des Maßabgleichs bleibt immer bestehen. Abschaltbar über
+Regel `GEO.CONTOUR` in `profiles.yaml`; benötigt das OCC-Backend.
+
 ## Regelkatalog anpassen
 
 `drawing_checker/rules/profiles.yaml` – Regeln je Materialgruppe

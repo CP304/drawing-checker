@@ -65,6 +65,10 @@ profiles:
       GEO.MISMATCH:   {enabled: true, severity: blocker}
       GEO.UNCERTAIN:  {enabled: true, severity: warning}
       GEO.NO_DIMS:    {enabled: true, severity: warning}
+      # Ausbaustufe: Konturprojektion (STEP-Silhouetten vs. PDF-Ansichten).
+      # Schärft das Maß-Urteil (bestätigt "unsicher" bzw. stuft "passt" bei
+      # klarem Widerspruch herab). Bei Bedarf hier abschaltbar.
+      GEO.CONTOUR:    {enabled: true, severity: warning}
 
   # Gussteile: Rohteil vs. Fertigteil-STEP weicht systematisch ab (Zugaben,
   # Formschrägen) -> großzügigeres Toleranzband, Abweichung nur "warning".
