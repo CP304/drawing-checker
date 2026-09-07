@@ -5,73 +5,106 @@ Internes Windows-Tool: prüft technische Zeichnungen je SAP-Materialnummer
 Widersprüche und Geometrie-Mismatch. GUI für nicht-technische Anwender.
 Sprache im Code/UI: Deutsch (Docstrings, Findings, Commit-Messages).
 
+**Das Repository ist bewusst konsolidiert.** Wenige, größere Dateien statt
+vieler kleiner: 20 Module im Paket, 6 Testdateien, 2 Werkzeuge, 3
+Dokumente. Nicht wieder aufsplitten – neue Funktionen kommen in das
+thematisch passende Modul, neue Tests in die passende Testdatei.
+
 ## Kommandos
 
 ```bash
 pip install -e .[occ,dev]                  # OCP nötig für STEP + Mock-Generierung
-python -m pytest tests/ -q                 # komplette Suite inkl. E2E (~1 min)
-python -m mockdata.generate                # Mockpakete nach mockdata/out/
-python -m drawing_checker.app --headless --mock mockdata/out \
-    --excel mockdata/out/Materialliste_Mock.xlsx --column C
-python -m drawing_checker.app --check-rules   # YAML-Wissenspakete validieren
+python -m pytest tests/ -q                 # komplette Suite inkl. E2E (~6 min)
+python -m drawing_checker.app --check-rules            # YAML-Wissenspakete validieren
+python -m drawing_checker.app --list-rules             # Regelkatalog je Profil
 python -m drawing_checker.app --sap-import-vbs x.vbs   # Mitschnitt -> Ablauf
 python -m drawing_checker.app --sap-dry-run 10473215   # Ablauf ohne SAP prüfen
-python -m drawing_checker.app --list-rules    # Regelkatalog je Profil
-python -m drawing_checker.app --ocr-check [x.pdf]  # OCR prüfen/vorführen
-python -m tools.ocr_bench                     # OCR-Güte messen
-python -m tools.langlauf --count 200          # Dauerlauf: Speicher/Platte
-python -m tools.kalibrier_auswertung <ordner> # Fehlalarme vs. Treffer
-python -m tools.paket_bauen                   # dist/DrawingChecker.zip bauen
-python -m tools.einzeldatei                   # dist/DrawingChecker_Setup.bat (1 Datei)
-python -m mockdata.quellen                    # Kalibrierzeichnungen auspacken
+python -m drawing_checker.app --ocr-check [x.pdf]      # OCR prüfen/vorführen
+python -m drawing_checker.app --headless --mock mockdata/out \
+    --excel mockdata/out/Materialliste_Mock.xlsx --column C
 QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # GUI headless
+
+python -m mockdata bauen                   # Mockpakete nach mockdata/out/
+python -m mockdata quellen                 # Kalibrierzeichnungen auspacken
+python -m mockdata fehler <quelle> <ziel>  # Referenz- und Fehlerpakete
+
+python -m tools.messen ocr                 # OCR-Güte messen
+python -m tools.messen langlauf --count 200   # Dauerlauf: Speicher/Platte
+python -m tools.messen kalibrier <ordner>     # Fehlalarme vs. Treffer
+python -m tools.messen normen <csv> <yaml>    # Normstatus importieren
+
+python -m tools.paket                      # ZIP + Einzeldatei bauen und prüfen
+python -m tools.paket --nur bat            # nur dist/DrawingChecker_Setup.bat
 ```
 
-## Architektur (Kurzfassung)
+## Architektur
 
-- `core/orchestrator.py` – Ablauf je Materialnummer, Resume-Zustand
-  (`core/state.py`), Retries mit SAP-Recovery; erzeugt am Laufende
-  HTML-Bericht, findings.csv und Excel-Zusammenfassung.
-- `sap/` – Adapter-Interface. Der Transaktionsablauf wird NICHT
-  programmiert: `vbs_parser.py` liest den .vbs-Mitschnitt, `script_flow.py`
-  spielt ihn ab (generische `call`/`set_prop`-Schritte decken auch
-  ALV-Grid-Methoden ab), `ymatdocs.py` klammert Download-Überwachung und
-  Statusauswertung darum. Ablauf-Datei: `regeln/ymatdocs_flow.yaml`.
-  `fake_session.py` simuliert SAP für Tests und `--sap-dry-run`;
-  `mock.py` liefert ZIPs aus einem Ordner und kann Abstürze simulieren.
-  Checkliste für den Durchstich: SAP_DURCHSTICH.md.
-- `drawing/` – PyMuPDF-Textlayer/Rendering, Maßextraktion, Änderungsdatum.
-  `ocr.py` ist auf Zeichnungen getrimmt (400 dpi, Otsu, Deskew, PSM 11,
+Alle Module liegen flach in `drawing_checker/`:
+
+| Modul | Inhalt |
+|---|---|
+| `kern.py` | Datenmodelle, Paketzugriff, Laufzustand (Resume), Haushalt |
+| `ablauf.py` | Orchestrator: je Materialnummer, blockweise, abbrechbar |
+| `zeichnung.py` | PDF-Textlayer/Rendering, Maßextraktion, Änderungsdatum, FCF |
+| `ocr.py` | OCR und ihre Selbstprüfung |
+| `regeln.py` | Regelmechanik, Profile, Validierung der YAMLs |
+| `pruef_zeichnung.py` | Vollständigkeit, Schriftfeld, Sprache, Maßstab, Verfahren |
+| `pruef_bemassung.py` | Maße, Toleranzen, GPS |
+| `pruef_werkstoff.py` | Werkstoff, Verfahren, Gewicht, Beschaffung |
+| `pruef_geometrie.py` | STEP-Abgleich, Silhouettenprojektion (alles OpenCascade) |
+| `bericht.py` | Annotation, Excel-Rückschrieb, HTML-Bericht |
+| `gui.py` | Fenster (PySide6) |
+| `sap_ablauf.py` | .vbs-Mitschnitt einlesen und abspielen |
+| `sap_sitzung.py` | Sitzung, Fenstergrenze, Popups, Download, Wächter, Diagnose |
+| `sap_ymatdocs.py` | Adapter-Schnittstelle, echter Weg, Mock, Testsitzung |
+| `sap_cli.py` | Kommandozeilenwerkzeuge rund um SAP |
+
+Wichtig dabei:
+
+- **SAP wird nicht programmiert, sondern aufgezeichnet.** `sap_ablauf.py`
+  liest den .vbs-Mitschnitt und spielt ihn ab (generische `call`/`set_prop`
+  decken auch ALV-Grid-Methoden ab); `sap_ymatdocs.py` klammert
+  Download-Überwachung und Statusauswertung darum. Ablaufdatei:
+  `regeln/ymatdocs_flow.yaml`. Die nachgebaute Sitzung in
+  `sap_ymatdocs.py` deckt Tests und `--sap-dry-run` ab.
+  Checkliste für den Durchstich: README.md, Abschnitt „SAP-Durchstich".
+- **Wissen gehört in `rules/*.yaml`** (profiles, materials, norms,
+  beschaffung) – NIE fachliche Listen im Code hartkodieren. YAML erweitern
+  und `--check-rules` laufen lassen. Externe Overlays: Ordner `regeln/`
+  neben der .exe bzw. `DRAWING_CHECKER_RULES`.
+- **OCR** ist auf Zeichnungen getrimmt (400 dpi, Otsu, Deskew, PSM 11,
   90°-Durchgang für gedrehte Maßtexte, Wörterbücher aus, Nachkorrektur);
   jedes `Word` trägt eine Konfidenz, unsichere Zahlen werden kein Maß.
   Seitenweise: OCR nur für Seiten ohne Textlayer. Einstellungen über
-  `DRAWING_CHECKER_OCR_*`; Güte messbar mit `tools/ocr_bench.py`.
-- `checks/` – Regelwerk. Wissen liegt in `rules/*.yaml` (profiles, materials,
-  norms) – NIE fachliche Listen im Code hartkodieren; YAML erweitern und
-  `--check-rules` laufen lassen. Externe Overlays: Ordner `regeln/` neben
-  der .exe bzw. `DRAWING_CHECKER_RULES`.
-- `checks/step_compare.py` + `checks/contour_projection.py` – Geometrie:
-  Maßabgleich (OBB, Diagonale, Zylinder) + HLR-Silhouetten vs. Ansichten.
-- `report/` – Annotation (Marker, Legende, Status-Stempel), Excel-Rückschrieb
-  (Spalten per Name, nicht per Index!), HTML-Bericht.
+  `DRAWING_CHECKER_OCR_*`, Güte messbar mit `tools.messen ocr`.
+- **Ringschlüsse vermeiden**: `sap_sitzung` trägt die Adapter-Schnittstelle,
+  `sap_ymatdocs` importiert nur in eine Richtung. Die `pruef_*`-Module
+  greifen untereinander nur über träge Importe in Funktionen zu.
 
 ## Konventionen
 
 - Jede neue Regel: Code (`GRUPPE.NAME`) in `rules/profiles.yaml` registrieren,
-  Severity dort pflegen, mindestens 1 Positiv- + 1 Negativtest.
-- Unsicheres meldet `warning` („nicht nachweisbar/prüfen“), nie hart `error`.
+  Severity dort pflegen, mindestens 1 Positiv- + 1 Negativtest, Eintrag im
+  Regelkatalog in README.md (ein Test erzwingt das).
+- Unsicheres meldet `warning` („nicht nachweisbar/prüfen"), nie hart `error`.
 - Findings mit `bbox` (PDF-Koordinaten) werden im Bild markiert.
+- **Keine neuen Dateien, wo ein bestehendes Modul passt.** Ein Test in
+  `tests/test_package.py` verbietet doppelt vergebene Namen auf Modulebene –
+  daran ist beim Zusammenlegen ein verdeckter Regex aufgefallen.
+- Gemeinsame Testhelfer (`make_ctx`, `codes`, `make_config`, `FONT`, `ECHT`,
+  `FIXTURE`) stehen einmal in `tests/conftest.py`, nicht je Testdatei.
 - Mockdaten sind Test-Fixtures (`tests/conftest.py` baut sie je Lauf);
   echte Kalibrierzeichnungen liegen als EIN Archiv `mockdata/echt_quellen.zip`
-  (Lizenzen in `mockdata/echt_quellen/SOURCES.md`); `mockdata/quellen.py`
+  (Lizenzen in `mockdata/echt_quellen/SOURCES.md`); `mockdata/daten.py`
   packt sie bei Bedarf nach `mockdata/.echt_quellen/` aus – nie wieder als
-  Einzeldateien einchecken. Fehler-Injektion über `mockdata/inject_errors.py`.
+  Einzeldateien einchecken.
 - Vor jedem Push: `python -m pytest tests/ -q` und `--check-rules`.
-- Regeln werden an den 84 echten Fremdzeichnungen (siehe oben)
-  kalibriert, nicht an Musterzeichnungen: `inject_errors` + `--headless`
-  + `tools/kalibrier_auswertung`. Harte Meldungen auf den unveränderten
+- Regeln werden an den 84 echten Fremdzeichnungen kalibriert, nicht an
+  Musterzeichnungen: `python -m mockdata fehler` + `--headless` +
+  `python -m tools.messen kalibrier`. Harte Meldungen auf den unveränderten
   Referenzen sind Fehlalarm-Verdacht.
 - Speicher: OpenCascade und PyMuPDF geben nichts von selbst frei – nach
-  großen Puffern `core.housekeeping.release_memory()` aufrufen und mit
-  `tools/langlauf.py` gegenmessen.
-- Übergabe an die nächste Sitzung: UEBERGABE.md aktuell halten.
+  großen Puffern `kern.release_memory()` aufrufen und mit
+  `python -m tools.messen langlauf` gegenmessen.
+- Übergabe an die nächste Sitzung: den Abschnitt „Übergabe" in README.md
+  aktuell halten.

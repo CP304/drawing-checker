@@ -298,7 +298,7 @@ def analyze_step(path: Path) -> StepGeometry:
     Wichtig für den Dauerlauf: Der STEP-Leser hält das übertragene Modell
     fest (~25 MB je Datei). Ohne das ausdrückliche Freigeben unten wächst
     der Prozess über eine Materialgruppe um Gigabyte und stirbt irgendwann
-    – gemessen mit `python -m tools.langlauf`.
+    – gemessen mit `python -m tools.messen langlauf`.
     """
     try:
         return _analyze_occ(path)

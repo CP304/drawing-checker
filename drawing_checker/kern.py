@@ -534,7 +534,7 @@ def release_memory() -> None:
     Beim Rendern und bei der OCR entstehen Puffer von über 100 MB je Seite.
     Python gibt sie frei, die C-Speicherverwaltung von Linux (glibc) behält
     sie aber im Prozess – über hunderte Materialnummern wächst der Prozess
-    dadurch um Gigabyte (gemessen mit `python -m tools.langlauf`).
+    dadurch um Gigabyte (gemessen mit `python -m tools.messen langlauf`).
     `malloc_trim` gibt sie wirklich zurück. Unter Windows regelt das die
     Heap-Verwaltung selbst; dort ist der Aufruf ein wirkungsloser No-op.
     """
@@ -543,7 +543,7 @@ def release_memory() -> None:
     gc.collect()
     # PyMuPDF hält einen internen Zwischenspeicher (Schriften, Bilder,
     # gerenderte Objekte) über Dokumentgrenzen hinweg. Über hunderte
-    # Zeichnungen sind das Gigabyte – messbar mit tools/langlauf.py.
+    # Zeichnungen sind das Gigabyte – messbar mit tools/messen.py langlauf.
     try:
         import pymupdf
 

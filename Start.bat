@@ -237,8 +237,8 @@ pause
 goto :menu
 
 :m_anleitung
-if exist "%PROJEKT%ANLEITUNG.md" start "" "%PROJEKT%ANLEITUNG.md"
-if not exist "%PROJEKT%ANLEITUNG.md" echo  ANLEITUNG.md wurde nicht gefunden.
+if exist "%PROJEKT%LIESMICH.txt" start "" notepad "%PROJEKT%LIESMICH.txt"
+if not exist "%PROJEKT%LIESMICH.txt" echo  LIESMICH.txt wurde nicht gefunden.
 goto :menu
 
 :durchreichen

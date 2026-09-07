@@ -180,7 +180,7 @@ def ocr_words(doc: "pymupdf.Document",
         finally:
             # Eine A1-Seite bei 400 dpi sind über 100 MB Bilddaten. Ohne
             # ausdrückliches Schließen wächst der Prozess im Dauerlauf mit
-            # jeder gescannten Zeichnung (gemessen mit tools/langlauf.py).
+            # jeder gescannten Zeichnung (gemessen mit tools/messen.py langlauf).
             img.close()
             release_memory()
     words = _dedupe(words)

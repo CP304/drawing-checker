@@ -65,7 +65,7 @@ heißen weiterhin DW660_Mount.pdf, MSK01-03.pdf und SM-S02.pdf.
 ## Nutzung
 
 ```bash
-python -m mockdata.inject_errors mockdata/echt_quellen <zielordner>
+python -m mockdata fehler mockdata/echt_quellen <zielordner>
 python -m drawing_checker.app --headless --mock <zielordner> \
     --excel <zielordner>/Materialliste_Echt.xlsx --column C
 python -m tools.kalibrier_auswertung <zielordner>
