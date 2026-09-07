@@ -245,13 +245,12 @@ python -m tools.paket --nur bat        # dist/DrawingChecker_Setup.bat  (Doppelk
 python -m tools.paket --nur zip        # dist/DrawingChecker.zip        (entpacken)
 ```
 
-* **[dist/DrawingChecker_Setup.bat](dist/DrawingChecker_Setup.bat)** (rund
-  0,3 MB) trägt das Paket als Base64 in sich. Doppelklick: Sie entpackt sich
+* **`dist/DrawingChecker_Setup.bat`** (rund 0,3 MB) trägt das Paket als Base64 in sich. Doppelklick: Sie entpackt sich
   in den Ordner `DrawingChecker` neben sich und startet die Einrichtung.
   Nichts wird in Windows installiert, nichts in der Registry geändert.
   Manche Virenscanner sehen selbstentpackende Batch-Dateien kritisch –
   dann die ZIP-Fassung nehmen.
-* **[dist/DrawingChecker.zip](dist/DrawingChecker.zip)** (rund 0,2 MB) ist
+* **`dist/DrawingChecker.zip`** (rund 0,2 MB) ist
   der unauffällige Weg: entpacken – es entsteht der Ordner
   `DrawingChecker` – und darin `Start.bat` doppelklicken.
 
@@ -259,6 +258,10 @@ Beide enthalten Programm, Wissenspakete, Startskript und Anleitungen (ohne
 die Kalibrierzeichnungen) und prüfen sich beim Bauen selbst: entpacken,
 `--check-rules` im entpackten Stand, Pflichtdateien vollständig. Alles
 Weitere (virtuelle Umgebung, Pakete, Menü) macht `Start.bat`.
+
+Der Ordner `dist/` ist **nicht** im Repository – die Auslieferung wird vor
+der Weitergabe gebaut (`python -m tools.paket`, unter einer Minute), damit
+nie ein alter Stand verteilt wird.
 
 ## Anleitungen
 

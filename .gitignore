@@ -3,11 +3,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 build/
-dist/
-# Ausnahme: das fertige Verteilpaket wird mitgeliefert, damit es ohne
-# Bauschritt weitergegeben werden kann.
-!dist/DrawingChecker.zip
-!dist/DrawingChecker_Setup.bat
+dist/            # Auslieferung wird gebaut (python -m tools.paket), nicht eingecheckt
 mockdata/out/
 Ergebnisse/
 *_geprüft.xlsx
