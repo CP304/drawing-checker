@@ -18,10 +18,12 @@ python -m drawing_checker.app --sap-import-vbs x.vbs   # Mitschnitt -> Ablauf
 python -m drawing_checker.app --sap-dry-run 10473215   # Ablauf ohne SAP prüfen
 python -m drawing_checker.app --list-rules    # Regelkatalog je Profil
 python -m drawing_checker.app --ocr-check [x.pdf]  # OCR prüfen/vorführen
-python -m tools.ocr_bench mockdata/echt_quellen    # OCR-Güte messen
+python -m tools.ocr_bench                     # OCR-Güte messen
 python -m tools.langlauf --count 200          # Dauerlauf: Speicher/Platte
 python -m tools.kalibrier_auswertung <ordner> # Fehlalarme vs. Treffer
 python -m tools.paket_bauen                   # dist/DrawingChecker.zip bauen
+python -m tools.einzeldatei                   # dist/DrawingChecker_Setup.bat (1 Datei)
+python -m mockdata.quellen                    # Kalibrierzeichnungen auspacken
 QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # GUI headless
 ```
 
@@ -60,10 +62,12 @@ QT_QPA_PLATFORM=offscreen python -m drawing_checker.app --mock mockdata/out  # G
 - Unsicheres meldet `warning` („nicht nachweisbar/prüfen“), nie hart `error`.
 - Findings mit `bbox` (PDF-Koordinaten) werden im Bild markiert.
 - Mockdaten sind Test-Fixtures (`tests/conftest.py` baut sie je Lauf);
-  echte Kalibrierzeichnungen liegen in `mockdata/echt_quellen/` (Lizenzen
-  in SOURCES.md), Fehler-Injektion über `mockdata/inject_errors.py`.
+  echte Kalibrierzeichnungen liegen als EIN Archiv `mockdata/echt_quellen.zip`
+  (Lizenzen in `mockdata/echt_quellen/SOURCES.md`); `mockdata/quellen.py`
+  packt sie bei Bedarf nach `mockdata/.echt_quellen/` aus – nie wieder als
+  Einzeldateien einchecken. Fehler-Injektion über `mockdata/inject_errors.py`.
 - Vor jedem Push: `python -m pytest tests/ -q` und `--check-rules`.
-- Regeln werden an `mockdata/echt_quellen/` (84 echte Fremdzeichnungen)
+- Regeln werden an den 84 echten Fremdzeichnungen (siehe oben)
   kalibriert, nicht an Musterzeichnungen: `inject_errors` + `--headless`
   + `tools/kalibrier_auswertung`. Harte Meldungen auf den unveränderten
   Referenzen sind Fehlalarm-Verdacht.

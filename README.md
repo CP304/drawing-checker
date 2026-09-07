@@ -8,7 +8,7 @@ Zeichnung gegen das STEP-Modell (Erkennung falsch gespeicherter
 Konfigurationen). Ergebnisse: annotiertes Zeichnungsbild je Materialnummer
 plus Rückschrieb in eine Kopie der Input-Excel.
 
-Konzept und Architektur: siehe [PLAN.md](PLAN.md).
+Konzept und Architektur: siehe [UEBERGABE.md](UEBERGABE.md).
 
 ## Installation (Entwicklungsrechner)
 
@@ -203,7 +203,8 @@ geschätzt):
   Zeichnungen weniger Fehlfunde; bei deutschen Zeichnungen ist das genau
   umgekehrt. Wer einen reinsprachigen Bestand hat, setzt `_LANG`.
 
-Die Güte ist messbar: `python -m tools.ocr_bench mockdata/echt_quellen`
+Die Güte ist messbar: `python -m tools.ocr_bench` (nimmt ohne Angabe die
+echten Kalibrierzeichnungen)
 rastert echte Zeichnungen (deren Textlayer die Wahrheit liefert) und misst,
 wie viel die OCR davon zurückgewinnt. Stand der Abstimmung, gemessen an
 neun echten Zeichnungen als 200-dpi-Scan mit Rauschen:
@@ -236,19 +237,28 @@ weil das STEP das fertige Teil beschreibt.
 
 ## Weitergabe an den Anwenderrechner
 
-Der Zielrechner bekommt **eine einzige Datei**:
+Der Zielrechner bekommt **eine einzige Datei**. Es gibt sie in zwei
+Fassungen – beides ist *eine* Datei, die Wahl hängt nur am Virenscanner:
 
 ```bash
-python -m tools.paket_bauen        # erzeugt dist/DrawingChecker.zip
+python -m tools.einzeldatei        # dist/DrawingChecker_Setup.bat  (Doppelklick)
+python -m tools.paket_bauen        # dist/DrawingChecker.zip        (entpacken)
 ```
 
-Das Archiv (rund 0,2 MB, ohne die 25 MB Kalibrierzeichnungen) enthält
-Programm, Wissenspakete, Startskript und Anleitungen und prüft sich beim
-Bauen selbst: entpacken, `--check-rules` im entpackten Stand, Pflichtdateien
-vollständig. Am Zielrechner entpacken – es entsteht der Ordner
-`DrawingChecker` – und darin `Start.bat` doppelklicken; alles Weitere
-(virtuelle Umgebung, Pakete, Menü) macht das Skript. Eine gebaute Fassung
-liegt unter [dist/DrawingChecker.zip](dist/DrawingChecker.zip).
+* **[dist/DrawingChecker_Setup.bat](dist/DrawingChecker_Setup.bat)** (rund
+  0,3 MB) trägt das Paket als Base64 in sich. Doppelklick: Sie entpackt sich
+  in den Ordner `DrawingChecker` neben sich und startet die Einrichtung.
+  Nichts wird in Windows installiert, nichts in der Registry geändert.
+  Manche Virenscanner sehen selbstentpackende Batch-Dateien kritisch –
+  dann die ZIP-Fassung nehmen.
+* **[dist/DrawingChecker.zip](dist/DrawingChecker.zip)** (rund 0,2 MB) ist
+  der unauffällige Weg: entpacken – es entsteht der Ordner
+  `DrawingChecker` – und darin `Start.bat` doppelklicken.
+
+Beide enthalten Programm, Wissenspakete, Startskript und Anleitungen (ohne
+die Kalibrierzeichnungen) und prüfen sich beim Bauen selbst: entpacken,
+`--check-rules` im entpackten Stand, Pflichtdateien vollständig. Alles
+Weitere (virtuelle Umgebung, Pakete, Menü) macht `Start.bat`.
 
 ## Anleitungen
 
@@ -257,15 +267,19 @@ liegt unter [dist/DrawingChecker.zip](dist/DrawingChecker.zip).
   Durchstich am Einsatztag.
 - **[UEBERGABE.md](UEBERGABE.md)** – Stand, Umgebung und nächste Schritte
   für die Weiterarbeit an einem anderen Rechner.
-- **[KNOWHOW.md](KNOWHOW.md)** – Fachwissen ohne Code einpflegen.
+- **[REGELKATALOG.md](REGELKATALOG.md)** – Fachwissen ohne Code einpflegen.
 - **[REGELKATALOG.md](REGELKATALOG.md)** – alle 98 Regeln im Klartext.
 
 ## Kalibrierung an echten Zeichnungen
 
-`mockdata/echt_quellen/` enthält **84 echte, frei lizenzierte
+`mockdata/echt_quellen.zip` enthält **84 echte, frei lizenzierte
 Fertigungszeichnungen** (28 mit STEP) aus OreSat (CERN-OHL-S v2) und
 ShapeOko (CC BY-SA 3.0) – Frästeile, Blech, Guss, Baugruppen, in mm und in
-Zoll, ISO- und ASME-Bemaßung. `mockdata/inject_errors.py` erzeugt daraus je
+Zoll, ISO- und ASME-Bemaßung. Sie liegen als **ein** Archiv im Repository
+(als über hundert Einzeldateien haben sie jede Dateiliste zugemüllt);
+`python -m mockdata.quellen` packt sie nach `mockdata/.echt_quellen/` aus,
+die Werkzeuge tun das bei Bedarf von selbst. `mockdata/inject_errors.py`
+erzeugt daraus je
 Zeichnung ein unverändertes Referenzpaket und eines mit gezielt
 eingebautem Fehler; `tools/kalibrier_auswertung.py` stellt beides
 gegenüber.
@@ -367,5 +381,6 @@ Noch offen, unabhängig vom Mitschnitt:
    Ordner `regeln/` neben die .exe).
 
 Weiteres Wissen einpflegen (Normen, Werkstoffe, Regeln) ohne Code: siehe
-[KNOWHOW.md](KNOWHOW.md). Echte Kalibrier-Zeichnungen: siehe
-[mockdata/echt_quellen/SOURCES.md](mockdata/echt_quellen/SOURCES.md).
+[REGELKATALOG.md](REGELKATALOG.md). Echte Kalibrier-Zeichnungen: siehe
+[mockdata/echt_quellen/SOURCES.md](mockdata/echt_quellen/SOURCES.md)
+(die Zeichnungen selbst: `mockdata/echt_quellen.zip`).

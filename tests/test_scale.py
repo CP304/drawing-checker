@@ -15,7 +15,17 @@ from drawing_checker.drawing.metadata import extract_scale, mm_per_point
 from drawing_checker.drawing.pdfdoc import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-ECHT = Path(__file__).resolve().parent.parent / "mockdata" / "echt_quellen"
+def _echte_zeichnungen() -> Path:
+    """Ordner mit den Kalibrierzeichnungen (liegen als ein Archiv im Repo)."""
+    from mockdata.quellen import zeichnungen
+
+    try:
+        return zeichnungen()
+    except FileNotFoundError:
+        return Path("/nicht/vorhanden")
+
+
+ECHT = _echte_zeichnungen()
 
 
 def make_pdf(tmp_path: Path, lines) -> DrawingPdf:

@@ -38,7 +38,6 @@ PFLICHT_DATEIEN = [
     "ANLEITUNG.md",
     "SAP_DURCHSTICH.md",
     "REGELKATALOG.md",
-    "KNOWHOW.md",
 ]
 ORDNER = ["drawing_checker"]
 ORDNER_MIT_TESTS = ["drawing_checker", "tests", "mockdata"]

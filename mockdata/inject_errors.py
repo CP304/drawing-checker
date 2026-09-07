@@ -177,10 +177,25 @@ SZENARIEN: list[list[str]] = [
 
 
 # --------------------------------------------------------------------- Aufbau
+def _quellordner(source: Path) -> Path:
+    """Ordner mit den Zeichnungen – auch wenn nur das Archiv da ist.
+
+    Die Kalibrierzeichnungen liegen als ein ZIP im Repository. Zeigt
+    `source` auf den (nicht ausgepackten) Ordner oder auf das Archiv
+    selbst, wird hier ausgepackt.
+    """
+    if source.is_dir() and any(source.glob("*.pdf")):
+        return source
+    from .quellen import zeichnungen
+
+    return zeichnungen()
+
+
 def build(source: Path, target: Path, start_matnr: int = 20500001) -> None:
     import openpyxl
     from openpyxl.styles import Font
 
+    source = _quellordner(source)
     pdfs = sorted(source.glob("*.pdf"))
     if not pdfs:
         raise SystemExit(f"Keine PDFs in {source} gefunden")

@@ -6,6 +6,17 @@ Entwicklungszwecke; Lizenzhinweise beachten.
 
 **Stand: 84 Zeichnungen, davon 28 mit STEP-Modell.**
 
+Die Dateien selbst liegen als **ein** Archiv `mockdata/echt_quellen.zip`
+neben diesem Ordner – als über hundert Einzeldateien haben sie jede
+Dateiliste zugemüllt. Auspacken (einmalig, nach `mockdata/.echt_quellen/`,
+nicht im Repository):
+
+```bash
+python -m mockdata.quellen
+```
+
+Die Werkzeuge unten packen bei Bedarf von selbst aus.
+
 Der Satz ist bewusst breit: Frästeile, Blechteile, Wellen/Shims, Guss- und
 Baugruppenzeichnungen, in Millimeter und in Zoll, ISO- und ASME-Bemaßung,
 sauber und schlampig bemaßt. Genau daran zeigt sich, ob eine Regel trägt

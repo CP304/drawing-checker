@@ -7,6 +7,7 @@ dist/
 # Ausnahme: das fertige Verteilpaket wird mitgeliefert, damit es ohne
 # Bauschritt weitergegeben werden kann.
 !dist/DrawingChecker.zip
+!dist/DrawingChecker_Setup.bat
 mockdata/out/
 Ergebnisse/
 *_geprüft.xlsx
@@ -14,3 +15,4 @@ Ergebnisse/
 regeln/
 .venv/
 logs/
+mockdata/.echt_quellen/

@@ -15,7 +15,17 @@ from drawing_checker.core.models import BBox, PackageContent, Severity
 from drawing_checker.drawing.fcf import FeatureFrame, find_feature_frames
 from drawing_checker.drawing.pdfdoc import DrawingPdf
 
-ECHT = Path(__file__).resolve().parent.parent / "mockdata" / "echt_quellen"
+def _echte_zeichnungen() -> Path:
+    """Ordner mit den Kalibrierzeichnungen (liegen als ein Archiv im Repo)."""
+    from mockdata.quellen import zeichnungen
+
+    try:
+        return zeichnungen()
+    except FileNotFoundError:
+        return Path("/nicht/vorhanden")
+
+
+ECHT = _echte_zeichnungen()
 pytestmark = pytest.mark.skipif(
     not (ECHT / "lensmount.pdf").exists(),
     reason="Kalibrierzeichnungen nicht vorhanden")

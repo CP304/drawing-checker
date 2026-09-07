@@ -4,7 +4,7 @@ Nimmt echte Zeichnungen MIT Textlayer, rastert sie (erzeugt also einen
 „Scan" mit bekannter Wahrheit) und misst, wie viel der OCR-Pfad davon
 zurückgewinnt. Damit ist die OCR-Qualität eine Zahl statt eines Gefühls.
 
-    python -m tools.ocr_bench mockdata/echt_quellen [--dpi 200] [--noise]
+    python -m tools.ocr_bench [ordner] [--dpi 200] [--noise]
 
 Gemessen wird:
   Token-Recall      Anteil der Wahrheits-Token, die die OCR wiederfindet
@@ -91,6 +91,11 @@ def analyse(pdf_path: Path) -> dict:
 
 
 def run(source: Path, dpi: int, noise: bool, skew: float) -> int:
+    if not (source.is_dir() and any(source.glob("*.pdf"))):
+        # Kalibrierzeichnungen liegen als ein Archiv im Repository.
+        from mockdata.quellen import zeichnungen
+
+        source = zeichnungen()
     pdfs = sorted(source.glob("*.pdf"))
     if not pdfs:
         print(f"Keine PDFs in {source}")
@@ -158,7 +163,10 @@ def _print(rows: list[dict], dpi: int, noise: bool, skew: float) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("source", type=Path)
+    ap.add_argument("source", type=Path, nargs="?",
+                    default=Path("mockdata/echt_quellen"),
+                    help="Ordner mit Zeichnungen; ohne Angabe die echten "
+                         "Kalibrierzeichnungen aus dem Archiv")
     ap.add_argument("--dpi", type=int, default=200,
                     help="Auflösung des simulierten Scans")
     ap.add_argument("--no-noise", action="store_true")

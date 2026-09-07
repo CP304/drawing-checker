@@ -4,11 +4,17 @@
 
 SO GEHT ES LOS
 --------------
-1. Diesen Ordner entpacken, falls er noch als ZIP vorliegt.
-   Rechtsklick auf die ZIP-Datei -> "Alle extrahieren ...",
-   Ziel zum Beispiel:  C:\Tools\DrawingChecker
-   WICHTIG: Nicht aus dem ZIP heraus starten - sonst gehen alle
-   Ergebnisse beim Schliessen verloren.
+1. Es gibt zwei Wege hierher - beide fuehren zum selben Ordner:
+
+   a) DrawingChecker_Setup.bat doppelklicken. Sie entpackt sich
+      selbst in den Ordner DrawingChecker daneben und macht bei
+      Schritt 2 von allein weiter. Fertig - Schritt 2 entfaellt.
+      (Meldet der Virenscanner etwas, Weg b) nehmen.)
+
+   b) DrawingChecker.zip entpacken: Rechtsklick -> "Alle
+      extrahieren ...", Ziel zum Beispiel: C:\Tools\DrawingChecker
+      WICHTIG: Nicht aus dem ZIP heraus starten - sonst gehen alle
+      Ergebnisse beim Schliessen verloren.
 
 2. Doppelklick auf   Start.bat
 
@@ -90,6 +96,6 @@ Zum Nachlesen:
   ANLEITUNG.md        Bedienung, 2 Seiten, fuer Anwender
   SAP_DURCHSTICH.md   SAP-Aufzeichnung und Fehlersuche, ausfuehrlich
   REGELKATALOG.md     alle 98 Pruefregeln im Klartext
-  KNOWHOW.md          eigene Werkstoffe/Normen ohne Programmierung
+  REGELKATALOG.md     alle Regeln + eigene Werkstoffe/Normen pflegen
 
 ===========================================================
