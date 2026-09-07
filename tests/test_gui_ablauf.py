@@ -16,8 +16,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from drawing_checker.sap.mock import MockSapAdapter          # noqa: E402
-from drawing_checker.sap.vbs_parser import uebernehmen       # noqa: E402
+from drawing_checker.sap_ymatdocs import MockSapAdapter # noqa: E402
+from drawing_checker.sap_ablauf import uebernehmen # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ymatdocs_beispiel.vbs"
 
@@ -26,15 +26,15 @@ FIXTURE = Path(__file__).parent / "fixtures" / "ymatdocs_beispiel.vbs"
 def fenster(tmp_path, monkeypatch):
     """MainWindow mit eigenem Regelordner, damit nichts überschrieben wird."""
     from PySide6.QtWidgets import QApplication
-    from drawing_checker.gui import main_window as mw
+    from drawing_checker import gui as mw
 
     monkeypatch.setenv("DRAWING_CHECKER_RULES", str(tmp_path / "regeln"))
-    monkeypatch.setattr("drawing_checker.sap.cli._default_flow_path",
+    monkeypatch.setattr("drawing_checker.sap_cli._default_flow_path",
                         lambda: tmp_path / "regeln" / "ymatdocs_flow.yaml")
     monkeypatch.setattr(
-        "drawing_checker.sap.ymatdocs.flow_search_paths",
+        "drawing_checker.sap_ymatdocs.flow_search_paths",
         lambda: [tmp_path / "regeln" / "ymatdocs_flow.yaml"])
-    from drawing_checker.sap.ymatdocs import _flow_cache
+    from drawing_checker.sap_ymatdocs import _flow_cache
 
     _flow_cache.clear()
     app = QApplication.instance() or QApplication([])

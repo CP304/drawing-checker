@@ -4,9 +4,9 @@ from pathlib import Path
 import openpyxl
 import pytest
 
-from drawing_checker.core.models import RunConfig
-from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-from drawing_checker.sap.mock import MockSapAdapter
+from drawing_checker.kern import RunConfig
+from drawing_checker.ablauf import Callbacks, Orchestrator
+from drawing_checker.sap_ymatdocs import MockSapAdapter
 
 
 @pytest.fixture(scope="module")

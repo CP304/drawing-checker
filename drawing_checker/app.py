@@ -1,26 +1,66 @@
-"""Einstiegspunkt der Anwendung.
-
-  drawing-checker                     GUI, echtes SAP (Windows)
-  drawing-checker --mock ORDNER       GUI, Mock-Adapter (ZIPs aus ORDNER)
-  drawing-checker --headless ...      Lauf ohne GUI (für Tests/Automatisierung)
+"""Logging: Datei je Lauf + Konsole. Anwender sehen Klartext in der GUI,
+Details landen im Logfile.
 """
 from __future__ import annotations
+
+# ======================================================================
+# logging_setup
+# ======================================================================
+# Logging: Datei je Lauf + Konsole. Anwender sehen Klartext in der GUI,
+# Details landen im Logfile.
+
+
+
+import logging
+import logging.handlers
+from pathlib import Path
+
+
+def setup_logging(log_dir: Path | None = None, level: int = logging.INFO) -> None:
+    root = logging.getLogger()
+    root.setLevel(level)
+    fmt = logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(name)s: %(message)s", "%H:%M:%S")
+
+    if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
+        console = logging.StreamHandler()
+        console.setFormatter(fmt)
+        root.addHandler(console)
+
+    if log_dir is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        fh = logging.handlers.RotatingFileHandler(
+            log_dir / "drawing_checker.log", maxBytes=2_000_000,
+            backupCount=5, encoding="utf-8")
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
+
+
+# ======================================================================
+# app
+# ======================================================================
+# Einstiegspunkt der Anwendung.
+#
+# drawing-checker                     GUI, echtes SAP (Windows)
+# drawing-checker --mock ORDNER       GUI, Mock-Adapter (ZIPs aus ORDNER)
+# drawing-checker --headless ...      Lauf ohne GUI (für Tests/Automatisierung)
+
+
 
 import argparse
 import sys
 from pathlib import Path
 
-from .core.models import RunConfig
-from .logging_setup import setup_logging
-from .sap.adapter import SapAdapter
+from .kern import RunConfig
+from .sap_sitzung import SapAdapter
 
 
 def build_adapter(config: RunConfig) -> SapAdapter:
     if config.mock_source is not None:
-        from .sap.mock import MockSapAdapter
+        from .sap_ymatdocs import MockSapAdapter
 
         return MockSapAdapter(config.mock_source)
-    from .sap.session import SapGuiAdapter
+    from .sap_sitzung import SapGuiAdapter
 
     return SapGuiAdapter(connection_name=config.sap_connection,
                          flow_path=config.sap_flow,
@@ -65,11 +105,11 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.ocr_check is not None:
-        from .drawing.ocr_check import ocr_check
+        from .ocr import ocr_check
 
         return ocr_check(Path(args.ocr_check) if args.ocr_check else None)
 
-    from .sap import cli as sapcli
+    from . import sap_cli as sapcli
 
     if args.sap_import_vbs:
         return sapcli.import_vbs(args.sap_import_vbs, args.sap_flow)
@@ -83,7 +123,7 @@ def main() -> int:
         return sapcli.dump_screen(args.system)
 
     if args.list_rules:
-        from .checks.base import load_profile, load_profiles_data
+        from .regeln import load_profile, load_profiles_data
 
         for pname in sorted(load_profiles_data(),
                             key=lambda n: (n != "default", n)):
@@ -97,7 +137,7 @@ def main() -> int:
         return 0
 
     if args.check_rules:
-        from .checks.rules_check import format_report, validate_rules
+        from .regeln import format_report, validate_rules
 
         issues, stats = validate_rules()
         print(format_report(issues, stats))
@@ -111,7 +151,7 @@ def main() -> int:
 def run_gui(args) -> int:
     from PySide6.QtWidgets import QApplication
 
-    from .gui.main_window import MainWindow, list_profiles
+    from .gui import MainWindow, list_profiles
 
     setup_logging(Path.home() / ".drawing-checker" / "logs")
     app = QApplication(sys.argv)
@@ -121,7 +161,7 @@ def run_gui(args) -> int:
 
     # Handgepflegte Wissenspakete beim Start prüfen: Probleme als Warnung
     # anzeigen (fehlerhafte Einträge werden im Lauf ignoriert, nicht fatal).
-    from .checks.rules_check import validate_rules
+    from .regeln import validate_rules
 
     issues, _stats = validate_rules()
     if issues:
@@ -140,7 +180,7 @@ def run_gui(args) -> int:
 def run_headless(args) -> int:
     import openpyxl
 
-    from .core.orchestrator import Callbacks, Orchestrator
+    from .ablauf import Callbacks, Orchestrator
 
     if not args.excel or not args.column:
         print("--headless benötigt --excel und --column", file=sys.stderr)

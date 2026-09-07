@@ -26,12 +26,10 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
 
-from ..core.models import (
-    JobStatus, MaterialResult, RunConfig, Severity, SEVERITY_LABEL,
-)
-from ..core.orchestrator import Callbacks, Orchestrator, Progress
-from ..report.excel_writer import read_materials
-from ..sap.adapter import SapAdapter
+from .kern import ( JobStatus, MaterialResult, RunConfig, Severity, SEVERITY_LABEL, )
+from .ablauf import Callbacks, Orchestrator, Progress
+from .bericht import read_materials
+from .sap_sitzung import SapAdapter
 
 log = logging.getLogger(__name__)
 
@@ -577,7 +575,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------- SAP-Ablauf (.vbs)
     def _flow_status(self) -> None:
         """Zeigt an, ob ein SAP-Ablauf eingelesen ist - und welcher."""
-        from ..sap.ymatdocs import load_flow
+        from .sap_ymatdocs import load_flow
 
         flow, quelle = load_flow(None)
         if quelle is None:
@@ -595,7 +593,7 @@ class MainWindow(QMainWindow):
             self.txt_system.setText(flow.connection)
 
     def _hat_ablauf(self) -> bool:
-        from ..sap.ymatdocs import load_flow
+        from .sap_ymatdocs import load_flow
 
         return load_flow(None)[1] is not None
 
@@ -631,8 +629,8 @@ class MainWindow(QMainWindow):
         der eigentliche Vorgang pruefen, ohne dass ein modales Fenster den
         Test anhaelt.
         """
-        from ..sap.cli import _default_flow_path
-        from ..sap.vbs_parser import uebernehmen
+        from .sap_cli import _default_flow_path
+        from .sap_ablauf import uebernehmen
 
         ziel = _default_flow_path()
         flow, ok, zeilen = uebernehmen(pfad, ziel)
@@ -671,7 +669,7 @@ class MainWindow(QMainWindow):
         einmal prüfen, nur weil ein Haken nicht gesetzt war. Gesucht wird
         ein Lauf zu DIESER Datei, diesem Blatt und dieser Spalte.
         """
-        from ..core.state import finde_fortsetzbaren_lauf
+        from .kern import finde_fortsetzbaren_lauf
 
         if self.chk_resume.isChecked():
             return True
@@ -811,7 +809,7 @@ class MainWindow(QMainWindow):
 
 
 def list_profiles() -> list[str]:
-    from ..checks.base import load_profiles_data
+    from .regeln import load_profiles_data
 
     names = list(load_profiles_data())
     names.sort(key=lambda n: (n != "default", n))

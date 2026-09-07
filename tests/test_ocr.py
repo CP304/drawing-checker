@@ -12,10 +12,10 @@ import io
 import pymupdf
 import pytest
 
-from drawing_checker.core.models import BBox
-from drawing_checker.drawing import ocr as ocrmod
-from drawing_checker.drawing.ocr import OcrSettings, _fix_token, _unrotate
-from drawing_checker.drawing.pdfdoc import DrawingPdf, Word
+from drawing_checker.kern import BBox
+from drawing_checker import ocr as ocrmod
+from drawing_checker.ocr import OcrSettings, _fix_token, _unrotate
+from drawing_checker.zeichnung import DrawingPdf, Word
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 has_tesseract = ocrmod._tesseract() is not None
@@ -211,7 +211,7 @@ def test_gemischtes_dokument_nutzt_beide_wege(tmp_path):
 @needs_ocr
 def test_unsichere_kurze_zahlen_werden_kein_mass(tmp_path):
     """Kurze OCR-Schnipsel unter der Konfidenzschwelle sind keine Maße."""
-    from drawing_checker.drawing.dimensions import extract_dimensions
+    from drawing_checker.zeichnung import extract_dimensions
 
     scan = _scan_pdf(tmp_path, ["Laenge 120", "Breite 80"])
     with DrawingPdf(scan) as pdf:
@@ -223,8 +223,8 @@ def test_unsichere_kurze_zahlen_werden_kein_mass(tmp_path):
 # ------------------------------------------------ Härtegrad bei OCR-Text
 def test_findings_werden_bei_ocr_herabgestuft(tmp_path):
     """Auf OCR-Grundlage darf keine Regel hart als Fehler melden."""
-    from drawing_checker.checks.base import CheckContext, load_profile
-    from drawing_checker.core.models import PackageContent, Severity
+    from drawing_checker.regeln import CheckContext, load_profile
+    from drawing_checker.kern import PackageContent, Severity
 
     class _PdfStub:
         ocr_used = True
@@ -237,8 +237,8 @@ def test_findings_werden_bei_ocr_herabgestuft(tmp_path):
 
 
 def test_paketfehler_bleibt_hart_trotz_ocr():
-    from drawing_checker.checks.base import CheckContext, load_profile
-    from drawing_checker.core.models import PackageContent, Severity
+    from drawing_checker.regeln import CheckContext, load_profile
+    from drawing_checker.kern import PackageContent, Severity
 
     class _PdfStub:
         ocr_used = True
@@ -250,8 +250,8 @@ def test_paketfehler_bleibt_hart_trotz_ocr():
 
 
 def test_ohne_ocr_bleibt_die_severity(tmp_path):
-    from drawing_checker.checks.base import CheckContext, load_profile
-    from drawing_checker.core.models import PackageContent, Severity
+    from drawing_checker.regeln import CheckContext, load_profile
+    from drawing_checker.kern import PackageContent, Severity
 
     class _PdfStub:
         ocr_used = False

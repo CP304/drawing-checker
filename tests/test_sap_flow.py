@@ -10,13 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from drawing_checker.sap import cli as sap_cli
-from drawing_checker.sap.download import DownloadWatcher
-from drawing_checker.sap.fake_session import FakeSession
-from drawing_checker.sap.popups import handle_popups
-from drawing_checker.sap.script_flow import FlowError, ScriptFlow, Step, play
-from drawing_checker.sap.vbs_parser import describe, parse_vbs
-from drawing_checker.sap.ymatdocs import run_ymatdocs
+from drawing_checker import sap_cli
+from drawing_checker.sap_sitzung import DownloadWatcher
+from drawing_checker.sap_ymatdocs import FakeSession
+from drawing_checker.sap_sitzung import handle_popups
+from drawing_checker.sap_ablauf import FlowError, ScriptFlow, Step, play
+from drawing_checker.sap_ablauf import describe, parse_vbs
+from drawing_checker.sap_ymatdocs import run_ymatdocs
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ymatdocs_beispiel.vbs"
 
@@ -197,7 +197,7 @@ def test_run_ymatdocs_liefert_paket(tmp_path):
 
 
 def test_run_ymatdocs_meldet_nicht_vorhandenes_material(tmp_path):
-    from drawing_checker.sap.adapter import MaterialNotFound
+    from drawing_checker.sap_sitzung import MaterialNotFound
 
     flow_datei = tmp_path / "flow.yaml"
     parse_vbs(FIXTURE).save(flow_datei)
@@ -210,7 +210,7 @@ def test_run_ymatdocs_meldet_nicht_vorhandenes_material(tmp_path):
 
 
 def test_run_ymatdocs_meldet_absturz(tmp_path):
-    from drawing_checker.sap.adapter import SapUnavailable
+    from drawing_checker.sap_sitzung import SapUnavailable
 
     flow_datei = tmp_path / "flow.yaml"
     parse_vbs(FIXTURE).save(flow_datei)
@@ -247,7 +247,7 @@ def test_cli_trockenlauf_meldet_fehlendes_materialfeld(tmp_path, capsys):
 def test_cli_trockenlauf_ohne_import_meldet_notnagel(tmp_path, capsys,
                                                      monkeypatch):
     """Ohne Mitschnitt darf der Trockenlauf nicht als 'ok' gelten."""
-    from drawing_checker.sap import ymatdocs
+    from drawing_checker import sap_ymatdocs as ymatdocs
 
     monkeypatch.setattr(ymatdocs, "flow_search_paths",
                         lambda: [tmp_path / "gibtsnicht.yaml"])
@@ -281,7 +281,7 @@ def test_verbindung_bleibt_leer_ohne_angabe():
 
 
 def test_verbindung_ueberlebt_speichern(tmp_path):
-    from drawing_checker.sap.script_flow import ScriptFlow
+    from drawing_checker.sap_ablauf import ScriptFlow
 
     flow = parse_vbs(FIXTURE)
     flow.connection = "Q22"
@@ -292,7 +292,7 @@ def test_verbindung_ueberlebt_speichern(tmp_path):
 
 def test_uebernehmen_speichert_und_meldet(tmp_path):
     """Ein Aufruf: einlesen, speichern, Klartext-Rückmeldung."""
-    from drawing_checker.sap.vbs_parser import uebernehmen
+    from drawing_checker.sap_ablauf import uebernehmen
 
     ziel = tmp_path / "regeln" / "ymatdocs_flow.yaml"
     flow, verstanden, zeilen = uebernehmen(FIXTURE, ziel)
@@ -305,8 +305,8 @@ def test_uebernehmen_speichert_und_meldet(tmp_path):
 
 
 def test_kurzbericht_meldet_luecken():
-    from drawing_checker.sap.script_flow import ScriptFlow, Step
-    from drawing_checker.sap.vbs_parser import kurzbericht
+    from drawing_checker.sap_ablauf import ScriptFlow, Step
+    from drawing_checker.sap_ablauf import kurzbericht
 
     flow = ScriptFlow(steps=[Step("press", "wnd[0]/tbar[0]/btn[0]")])
     verstanden, zeilen = kurzbericht(flow)

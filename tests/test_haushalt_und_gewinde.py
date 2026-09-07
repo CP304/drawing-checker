@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.dimension_checks import check_thread_depths
-from drawing_checker.core import housekeeping as hk
-from drawing_checker.core.models import BBox, PackageContent, Severity
-from drawing_checker.drawing.dimensions import DimKind, DimValue
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_bemassung import check_thread_depths
+from drawing_checker import kern as hk
+from drawing_checker.kern import BBox, PackageContent, Severity
+from drawing_checker.zeichnung import DimKind, DimValue
 
 
 # ------------------------------------------------------------- Haushalt
@@ -62,9 +62,9 @@ def test_release_memory_laeuft_durch():
 
 def test_orchestrator_raeumt_pakete_auf(mock_dir, tmp_path):
     """Nach dem Lauf darf im Paketordner nichts liegen bleiben."""
-    from drawing_checker.core.models import RunConfig
-    from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-    from drawing_checker.sap.mock import MockSapAdapter
+    from drawing_checker.kern import RunConfig
+    from drawing_checker.ablauf import Callbacks, Orchestrator
+    from drawing_checker.sap_ymatdocs import MockSapAdapter
 
     cfg = RunConfig(excel_path=mock_dir / "Materialliste_Mock.xlsx",
                     sheet_name="Materialliste", material_column="C",
@@ -80,9 +80,9 @@ def test_orchestrator_raeumt_pakete_auf(mock_dir, tmp_path):
 
 
 def test_orchestrator_behaelt_pakete_auf_wunsch(mock_dir, tmp_path):
-    from drawing_checker.core.models import RunConfig
-    from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-    from drawing_checker.sap.mock import MockSapAdapter
+    from drawing_checker.kern import RunConfig
+    from drawing_checker.ablauf import Callbacks, Orchestrator
+    from drawing_checker.sap_ymatdocs import MockSapAdapter
 
     cfg = RunConfig(excel_path=mock_dir / "Materialliste_Mock.xlsx",
                     sheet_name="Materialliste", material_column="C",
@@ -162,7 +162,7 @@ def test_aluminium_verlangt_mehr_einschraubtiefe():
 # ------------------------------------------------------------ Spiegelung
 def test_spiegelerkennung_unterscheidet_haende():
     """Eine L-Kontur gegen ihr Spiegelbild: gespiegelt muss besser passen."""
-    from drawing_checker.checks.contour_projection import ViewCluster, match_views
+    from drawing_checker.pruef_geometrie import ViewCluster, match_views
 
     # L-förmige, eindeutig unsymmetrische Kontur
     punkte = [(0, 0), (40, 0), (40, 10), (10, 10), (10, 30), (0, 30), (0, 0)]
@@ -176,7 +176,7 @@ def test_spiegelerkennung_unterscheidet_haende():
 
 
 def test_spiegelerkennung_meldet_bei_gleicher_hand_nicht():
-    from drawing_checker.checks.contour_projection import ViewCluster, match_views
+    from drawing_checker.pruef_geometrie import ViewCluster, match_views
 
     punkte = [(0, 0), (40, 0), (40, 10), (10, 10), (10, 30), (0, 30), (0, 0)]
     kontur = [(a[0], a[1], b[0], b[1]) for a, b in zip(punkte, punkte[1:])]
@@ -189,10 +189,8 @@ def test_spiegelerkennung_meldet_bei_gleicher_hand_nicht():
 # --------------------------------------------------------- Anwenderseite
 def test_maengelspalte_wird_gedeckelt():
     """30 Findings gehören nicht in eine Excel-Zelle."""
-    from drawing_checker.core.models import Finding, JobStatus, MaterialResult
-    from drawing_checker.report.excel_writer import (
-        MAX_FINDINGS_IN_CELL, _findings_text,
-    )
+    from drawing_checker.kern import Finding, JobStatus, MaterialResult
+    from drawing_checker.bericht import ( MAX_FINDINGS_IN_CELL, _findings_text, )
 
     r = MaterialResult(material="1", row=2, status=JobStatus.FINDINGS)
     r.findings = [Finding(code=f"X.{i}", severity=Severity.WARNING,
@@ -205,8 +203,8 @@ def test_maengelspalte_wird_gedeckelt():
 
 
 def test_maengelspalte_ohne_deckel_bei_wenigen():
-    from drawing_checker.core.models import Finding, JobStatus, MaterialResult
-    from drawing_checker.report.excel_writer import _findings_text
+    from drawing_checker.kern import Finding, JobStatus, MaterialResult
+    from drawing_checker.bericht import _findings_text
 
     r = MaterialResult(material="1", row=2, status=JobStatus.FINDINGS)
     r.findings = [Finding(code="A.B", severity=Severity.ERROR, text="Ein Punkt")]
@@ -217,7 +215,7 @@ def test_klartext_uebersetzt_technische_fehler():
     import os
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from drawing_checker.gui.main_window import klartext
+    from drawing_checker.gui import klartext
 
     assert "Excel geöffnet" in klartext(PermissionError(13, "denied"))
     assert "Speicherplatz" in klartext(OSError("[Errno 28] No space left"))

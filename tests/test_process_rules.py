@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pymupdf
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.process_checks import run_process_checks
-from drawing_checker.core.models import PackageContent, Severity
-from drawing_checker.drawing.dimensions import extract_dimensions
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_werkstoff import run_process_checks
+from drawing_checker.kern import PackageContent, Severity
+from drawing_checker.zeichnung import extract_dimensions
+from drawing_checker.zeichnung import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 

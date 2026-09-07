@@ -5,10 +5,10 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.drawing_checks import run_drawing_checks
-from drawing_checker.core.models import PackageContent, Severity
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_zeichnung import run_drawing_checks
+from drawing_checker.kern import PackageContent, Severity
+from drawing_checker.zeichnung import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 

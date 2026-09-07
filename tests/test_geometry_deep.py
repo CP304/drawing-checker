@@ -4,17 +4,13 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.geometry_checks import (
-    check_hole_pattern, check_mass, check_threads,
-)
-from drawing_checker.checks.step_compare import StepGeometry, analyze_step
-from drawing_checker.core.models import BBox, PackageContent, Severity
-from drawing_checker.drawing.dimensions import (
-    DimKind, DimValue, hole_pattern, it_grade_span,
-)
-from drawing_checker.drawing.metadata import extract_weight_kg
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_geometrie import ( check_hole_pattern, check_mass, check_threads, )
+from drawing_checker.pruef_geometrie import StepGeometry, analyze_step
+from drawing_checker.kern import BBox, PackageContent, Severity
+from drawing_checker.zeichnung import ( DimKind, DimValue, hole_pattern, it_grade_span, )
+from drawing_checker.zeichnung import extract_weight_kg
+from drawing_checker.zeichnung import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 pytest.importorskip("OCP", reason="Geometrieprüfung benötigt OpenCascade")
@@ -210,9 +206,9 @@ def test_dimension_tolerance_span():
 # ------------------------------------------------------ E2E-Regression
 def test_wrong_config_has_three_independent_indications(mock_dir, tmp_path):
     """Falsches Gussgehäuse: Hüllmaß, Masse und Bohrbild schlagen an."""
-    from drawing_checker.core.models import RunConfig
-    from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-    from drawing_checker.sap.mock import MockSapAdapter
+    from drawing_checker.kern import RunConfig
+    from drawing_checker.ablauf import Callbacks, Orchestrator
+    from drawing_checker.sap_ymatdocs import MockSapAdapter
 
     cfg = RunConfig(excel_path=mock_dir / "Materialliste_Mock.xlsx",
                     sheet_name="Materialliste", material_column="C",
@@ -233,7 +229,7 @@ def test_wrong_config_has_three_independent_indications(mock_dir, tmp_path):
 # ------------------------------------------- Einheiten und Baugruppe
 def test_inch_mm_mismatch_detected(tmp_path):
     """Modell in Zoll exportiert: Zeichnungsmaß / OBB ≈ 25,4."""
-    from drawing_checker.checks.geometry_checks import check_unit_mismatch
+    from drawing_checker.pruef_geometrie import check_unit_mismatch
 
     ctx = make_ctx(tmp_path, ["Werkstoff S355J2", "Länge 254"])
     geo = StepGeometry(obb_dims=(10.0, 4.0, 2.0), volume=80, backend="occ")
@@ -243,7 +239,7 @@ def test_inch_mm_mismatch_detected(tmp_path):
 
 
 def test_matching_units_no_finding(tmp_path):
-    from drawing_checker.checks.geometry_checks import check_unit_mismatch
+    from drawing_checker.pruef_geometrie import check_unit_mismatch
 
     ctx = make_ctx(tmp_path, ["Werkstoff S355J2"])
     geo = StepGeometry(obb_dims=(250.0, 100.0, 50.0), volume=1000,
@@ -253,7 +249,7 @@ def test_matching_units_no_finding(tmp_path):
 
 
 def test_assembly_without_bom_is_error(tmp_path):
-    from drawing_checker.checks.geometry_checks import check_assembly_vs_part
+    from drawing_checker.pruef_geometrie import check_assembly_vs_part
 
     ctx = make_ctx(tmp_path, ["Werkstoff S355J2", "Einzelteil"])
     geo = StepGeometry(obb_dims=(200, 100, 50), volume=1000, backend="occ",
@@ -265,7 +261,7 @@ def test_assembly_without_bom_is_error(tmp_path):
 
 def test_unfused_solids_are_info(tmp_path):
     """Sich berührende Körper sind ein Modellierungs-, kein Dokumentfehler."""
-    from drawing_checker.checks.geometry_checks import check_assembly_vs_part
+    from drawing_checker.pruef_geometrie import check_assembly_vs_part
 
     ctx = make_ctx(tmp_path, ["Werkstoff S355J2"])
     geo = StepGeometry(obb_dims=(200, 100, 50), volume=1000, backend="occ",
@@ -276,7 +272,7 @@ def test_unfused_solids_are_info(tmp_path):
 
 
 def test_single_solid_part_is_fine(tmp_path):
-    from drawing_checker.checks.geometry_checks import check_assembly_vs_part
+    from drawing_checker.pruef_geometrie import check_assembly_vs_part
 
     ctx = make_ctx(tmp_path, ["Werkstoff S355J2", "Einzelteil"])
     geo = StepGeometry(obb_dims=(200, 100, 50), volume=1000, backend="occ",

@@ -1,11 +1,9 @@
 import pytest
 
-from drawing_checker.checks.base import load_profile
-from drawing_checker.checks.step_compare import (
-    StepGeometry, _analyze_pointcloud, analyze_step, compare_step_to_drawing,
-)
-from drawing_checker.core.models import BBox
-from drawing_checker.drawing.dimensions import DimKind, DimValue
+from drawing_checker.regeln import load_profile
+from drawing_checker.pruef_geometrie import ( StepGeometry, _analyze_pointcloud, analyze_step, compare_step_to_drawing, )
+from drawing_checker.kern import BBox
+from drawing_checker.zeichnung import DimKind, DimValue
 
 
 def dv(value, kind=DimKind.LINEAR):
@@ -72,7 +70,7 @@ def test_box_bounds_kommt_mit_beiden_ocp_fassungen_klar():
     Beides muss dieselben Werte liefern, sonst läuft das Werkzeug je nach
     Python-Fassung des Zielrechners nicht.
     """
-    from drawing_checker.checks.step_compare import _box_bounds
+    from drawing_checker.pruef_geometrie import _box_bounds
 
     class _Punkt:
         def __init__(self, x, y, z):

@@ -6,7 +6,7 @@ Dokumentation für den Fachbereich nicht hinter dem Code zurückbleibt.
 import re
 from pathlib import Path
 
-from drawing_checker.checks.base import load_profile, load_profiles_data
+from drawing_checker.regeln import load_profile, load_profiles_data
 
 KATALOG = Path(__file__).resolve().parent.parent / "REGELKATALOG.md"
 

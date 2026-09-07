@@ -73,11 +73,11 @@ def _tokens(words: list[str]) -> tuple[set[str], set[str]]:
 
 def analyse(pdf_path: Path) -> dict:
     """Ein Durchgang: Token, Maße und Findings eines PDFs (wie im Lauf)."""
-    from drawing_checker.checks.base import CheckContext, load_profile
-    from drawing_checker.checks.drawing_checks import run_drawing_checks
-    from drawing_checker.core.models import PackageContent
-    from drawing_checker.drawing.dimensions import extract_dimensions
-    from drawing_checker.drawing.pdfdoc import DrawingPdf
+    from drawing_checker.regeln import CheckContext, load_profile
+    from drawing_checker.pruef_zeichnung import run_drawing_checks
+    from drawing_checker.kern import PackageContent
+    from drawing_checker.zeichnung import extract_dimensions
+    from drawing_checker.zeichnung import DrawingPdf
 
     with DrawingPdf(pdf_path) as pdf:
         ctx = CheckContext("bench", pdf, PackageContent(),

@@ -1,5 +1,5 @@
-from drawing_checker.checks.base import load_profile
-from drawing_checker.core.models import Severity
+from drawing_checker.regeln import load_profile
+from drawing_checker.kern import Severity
 
 
 def test_default_profile():

@@ -20,8 +20,8 @@ a = Analysis(
         (str(ROOT / "drawing_checker" / "rules"), "drawing_checker/rules"),
     ],
     hiddenimports=[
-        "drawing_checker.sap.session",
-        "drawing_checker.sap.watchdog",
+        "drawing_checker.sap_sitzung",
+        "drawing_checker.sap_ymatdocs",
         "win32com", "win32com.client", "win32cred",
     ],
     excludes=["tkinter", "matplotlib", "IPython", "pytest"],

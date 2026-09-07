@@ -106,7 +106,7 @@ def obsolete_norm(doc: pymupdf.Document) -> str:
 
 def set_material(doc: pymupdf.Document, new: str = "1.4305") -> str:
     """Ersetzt die erste erkannte Werkstoffbezeichnung durch `new`."""
-    from drawing_checker.checks.materials import MATERIALS
+    from drawing_checker.pruef_werkstoff import MATERIALS
     import re
 
     for page in doc:

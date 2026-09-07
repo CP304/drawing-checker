@@ -3,9 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from drawing_checker.core.package import (
-    PackageError, classify_files, extract_package,
-)
+from drawing_checker.kern import ( PackageError, classify_files, extract_package, )
 
 
 def make_zip(path: Path, names: dict[str, bytes]):
@@ -54,3 +52,35 @@ def test_empty_zip_raises(tmp_path):
     z.write_bytes(b"")
     with pytest.raises(PackageError):
         extract_package(z, tmp_path / "w", "x")
+
+
+# ------------------------------------------------- Schranke fuers Zusammenlegen
+def test_kein_name_wird_im_modul_doppelt_vergeben():
+    """Zusammengelegte Module duerfen sich nicht gegenseitig ueberschreiben.
+
+    Beim Flachziehen der Paketstruktur sind zwei verschiedene Regexe unter
+    demselben Namen `RE_SCALE` in einem Modul gelandet - der zweite hat den
+    ersten verdeckt und die Maßstabserkennung stillgelegt. Gefunden haben
+    das die Tests; damit es gar nicht erst passiert, prueft dieser Test
+    jedes Modul auf doppelt vergebene Namen auf oberster Ebene.
+    """
+    import ast
+    from collections import Counter
+    from pathlib import Path
+
+    wurzel = Path(__file__).resolve().parent.parent / "drawing_checker"
+    doppelt = {}
+    for pfad in sorted(wurzel.glob("*.py")):
+        namen = Counter()
+        for knoten in ast.parse(pfad.read_text(encoding="utf-8")).body:
+            if isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                   ast.ClassDef)):
+                namen[knoten.name] += 1
+            elif isinstance(knoten, ast.Assign):
+                for ziel in knoten.targets:
+                    if isinstance(ziel, ast.Name):
+                        namen[ziel.id] += 1
+        mehrfach = {n: z for n, z in namen.items() if z > 1}
+        if mehrfach:
+            doppelt[pfad.name] = mehrfach
+    assert not doppelt, f"Namen doppelt vergeben: {doppelt}"

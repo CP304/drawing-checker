@@ -4,15 +4,13 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.scale_checks import (
-    check_scale_consistency, check_view_vs_model,
-)
-from drawing_checker.checks.step_compare import StepGeometry
-from drawing_checker.core.models import BBox, PackageContent, Severity
-from drawing_checker.drawing.dimensions import DimKind, DimValue
-from drawing_checker.drawing.metadata import extract_scale, mm_per_point
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_zeichnung import ( check_scale_consistency, check_view_vs_model, )
+from drawing_checker.pruef_geometrie import StepGeometry
+from drawing_checker.kern import BBox, PackageContent, Severity
+from drawing_checker.zeichnung import DimKind, DimValue
+from drawing_checker.zeichnung import extract_scale, mm_per_point
+from drawing_checker.zeichnung import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 def _echte_zeichnungen() -> Path:
@@ -100,7 +98,7 @@ def test_measurement_reported_even_when_rule_disabled(mock_dir):
 
 def test_mock_drawings_are_exactly_to_scale(mock_dir):
     """Die Mockzeichnungen sind maßstabsgetreu – Messung trifft die Maße."""
-    from drawing_checker.checks.scale_checks import measure_largest_view
+    from drawing_checker.pruef_zeichnung import measure_largest_view
 
     with DrawingPdf(mock_dir / "_arbeit" / "Z_10473217.pdf") as pdf:
         ctx = CheckContext("x", pdf, PackageContent(), load_profile("default"))
@@ -120,7 +118,7 @@ def test_oversized_view_is_flagged_when_enabled(tmp_path):
     ctx = ctx_for(tmp_path, ["Maßstab 1:1", "Werkstoff C45"])
     ctx.profile = _enable("default", "SCALE.MISMATCH")
     # Ansicht künstlich groß: Stub über measure ersetzen
-    import drawing_checker.checks.scale_checks as sc
+    import drawing_checker.pruef_zeichnung as sc
 
     class _V:
         bbox = (0, 0, 500, 200)
@@ -139,7 +137,7 @@ def test_undersized_view_is_never_flagged(tmp_path):
     """Zu klein gemessene Ansichten sind ein Erkennungsproblem, kein Fehler."""
     ctx = ctx_for(tmp_path, ["Maßstab 1:1", "Werkstoff C45"])
     ctx.profile = _enable("default", "SCALE.MISMATCH")
-    import drawing_checker.checks.scale_checks as sc
+    import drawing_checker.pruef_zeichnung as sc
 
     class _V:
         bbox = (0, 0, 100, 50)

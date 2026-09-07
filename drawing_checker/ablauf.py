@@ -15,22 +15,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from ..checks.base import CheckContext, load_profile
-from ..checks.drawing_checks import run_drawing_checks
-from ..checks.language_check import check_language
-from ..checks.step_compare import check_step
-from ..drawing.dimensions import extract_dimensions
-from ..drawing.pdfdoc import DrawingPdf
-from ..report.annotate import annotate
-from ..report.excel_writer import ResultWorkbook, read_materials
-from ..sap.adapter import MaterialNotFound, SapAdapter, SapUnavailable
-from ..sap.script_flow import Abgebrochen as _SapAbgebrochen
-from . import package as pkg
-from .housekeeping import (
-    DiskFull, DiskGuard, cleanup_package, free_mb, release_memory,
-)
-from .models import JobStatus, MaterialResult, RunConfig, Severity
-from .state import RunState, finde_fortsetzbaren_lauf
+from .regeln import CheckContext, load_profile
+from .pruef_zeichnung import run_drawing_checks
+from .pruef_zeichnung import check_language
+from .pruef_geometrie import check_step
+from .zeichnung import extract_dimensions
+from .zeichnung import DrawingPdf
+from .bericht import annotate
+from .bericht import ResultWorkbook, read_materials
+from .sap_sitzung import MaterialNotFound, SapAdapter, SapUnavailable
+from .sap_ablauf import Abgebrochen as _SapAbgebrochen
+from . import kern as pkg
+from .kern import ( DiskFull, DiskGuard, cleanup_package, free_mb, release_memory, )
+from .kern import JobStatus, MaterialResult, RunConfig, Severity
+from .kern import RunState, finde_fortsetzbaren_lauf
 
 log = logging.getLogger(__name__)
 
@@ -238,7 +236,7 @@ class Orchestrator:
         except Exception:
             log.exception("findings.csv fehlgeschlagen")
         try:
-            from ..report.html_report import write_html_report
+            from .bericht import write_html_report
 
             self.report_path = write_html_report(
                 self.config, all_results, self.run_dir, self.profile.name,
@@ -295,7 +293,7 @@ class Orchestrator:
             time.sleep(self.config.batch_pause_s)
 
     def _write_zwischenbericht(self) -> None:
-        from ..report.html_report import write_html_report
+        from .bericht import write_html_report
 
         self.report_path = write_html_report(
             self.config, list(self.state.results.values()), self.run_dir,
@@ -397,8 +395,8 @@ class Orchestrator:
                                "Beanstandungen die Zeichnung ansehen.")
 
             # Prüfdokumentation: Änderungsdatum + Fertigungsverfahren
-            from ..checks.processes import detect_processes
-            from ..drawing.metadata import extract_revision_date
+            from .pruef_zeichnung import detect_processes
+            from .zeichnung import extract_revision_date
 
             result.drawing_rev_date = extract_revision_date(pdf)
             result.processes = detect_processes(pdf)
@@ -412,12 +410,12 @@ class Orchestrator:
                 dims = extract_dimensions(
                     pdf, float(self.profile.params.get("max_plausible_dim", 6000)))
                 # Tiefenprüfungen auf Basis der extrahierten Maße
-                from ..checks.dimension_checks import run_dimension_checks
-                from ..checks.doc_checks import run_doc_checks
-                from ..checks.gps_checks import run_gps_checks
-                from ..checks.mass_checks import check_mass_plausibility
-                from ..checks.process_checks import run_process_checks
-                from ..checks.purchasing_checks import run_purchasing_checks
+                from .pruef_bemassung import run_dimension_checks
+                from .pruef_zeichnung import run_doc_checks
+                from .pruef_bemassung import run_gps_checks
+                from .pruef_werkstoff import check_mass_plausibility
+                from .pruef_werkstoff import run_process_checks
+                from .pruef_werkstoff import run_purchasing_checks
 
                 run_gps_checks(ctx, dims)
                 run_dimension_checks(ctx, dims)
@@ -425,7 +423,7 @@ class Orchestrator:
                 run_purchasing_checks(ctx, dims)
                 run_doc_checks(ctx)
                 mass_note = check_mass_plausibility(ctx, dims)
-                from ..checks.scale_checks import check_scale_consistency
+                from .pruef_zeichnung import check_scale_consistency
 
                 scale_note = check_scale_consistency(ctx, dims)
             result.step_summary = check_step(ctx, dims)
@@ -452,7 +450,7 @@ class Orchestrator:
         über mehrere Läufe (häufigste Mängel, Lieferanten-/Gruppenvergleich)."""
         import csv
 
-        from .models import SEVERITY_LABEL
+        from .kern import SEVERITY_LABEL
 
         path = self.run_dir / "findings.csv"
         with open(path, "w", newline="", encoding="utf-8-sig") as fh:
@@ -488,6 +486,6 @@ class Orchestrator:
 
 
 def _finding_no_package(text: str):
-    from .models import BBox, Finding  # noqa: F401 (BBox für Symmetrie)
+    from .kern import BBox, Finding # noqa: F401 (BBox für Symmetrie)
 
     return Finding(code="DOC.NO_PDF", severity=Severity.BLOCKER, text=text)

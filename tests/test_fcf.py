@@ -7,13 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.gps_checks import (
-    check_diameter_zone_needs_datum, check_gdt_readability,
-)
-from drawing_checker.core.models import BBox, PackageContent, Severity
-from drawing_checker.drawing.fcf import FeatureFrame, find_feature_frames
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_bemassung import ( check_diameter_zone_needs_datum, check_gdt_readability, )
+from drawing_checker.kern import BBox, PackageContent, Severity
+from drawing_checker.zeichnung import FeatureFrame, find_feature_frames
+from drawing_checker.zeichnung import DrawingPdf
 
 def _echte_zeichnungen() -> Path:
     """Ordner mit den Kalibrierzeichnungen (liegen als ein Archiv im Repo)."""

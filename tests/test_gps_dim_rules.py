@@ -8,12 +8,12 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.dimension_checks import run_dimension_checks
-from drawing_checker.checks.gps_checks import run_gps_checks
-from drawing_checker.core.models import PackageContent, Severity
-from drawing_checker.drawing.dimensions import extract_dimensions
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_bemassung import run_dimension_checks
+from drawing_checker.pruef_bemassung import run_gps_checks
+from drawing_checker.kern import PackageContent, Severity
+from drawing_checker.zeichnung import extract_dimensions
+from drawing_checker.zeichnung import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
@@ -45,7 +45,7 @@ class _FakeBlock:
     """Textblock-Stub mit Dummy-Position."""
 
     def __init__(self, text, i=0):
-        from drawing_checker.core.models import BBox
+        from drawing_checker.kern import BBox
         self.text = text
         self.bbox = BBox(10, 10 + i * 20, 200, 25 + i * 20)
         self.page = 0
@@ -69,8 +69,8 @@ class _FakePdf:
         return "\n".join(b.text for b in self._blocks)
 
     def words(self):
-        from drawing_checker.core.models import BBox
-        from drawing_checker.drawing.pdfdoc import Word
+        from drawing_checker.kern import BBox
+        from drawing_checker.zeichnung import Word
         out = []
         for b in self._blocks:
             for i, t in enumerate(b.text.split()):

@@ -1,11 +1,11 @@
 """Kommandozeilen-Werkzeuge für den SAP-Durchstich.
 
-  --sap-import-vbs DATEI   Mitschnitt einlesen, Ablauf anzeigen und speichern
-  --sap-show-flow          gespeicherten Ablauf anzeigen
-  --sap-dry-run [MATNR]    Ablauf gegen eine simulierte Session abspielen
-                           (prüft Platzhalter und Reihenfolge ohne SAP)
-  --sap-test MATNR         eine Materialnummer echt über SAP holen
-  --sap-dump               Elementbaum des aktuellen SAP-Bildes ausgeben
+--sap-import-vbs DATEI   Mitschnitt einlesen, Ablauf anzeigen und speichern
+--sap-show-flow          gespeicherten Ablauf anzeigen
+--sap-dry-run [MATNR]    Ablauf gegen eine simulierte Session abspielen
+                         (prüft Platzhalter und Reihenfolge ohne SAP)
+--sap-test MATNR         eine Materialnummer echt über SAP holen
+--sap-dump               Elementbaum des aktuellen SAP-Bildes ausgeben
 """
 from __future__ import annotations
 
@@ -19,12 +19,12 @@ DEFAULT_FLOW_NAME = "ymatdocs_flow.yaml"
 
 
 def import_vbs(vbs_path: Path, out_path: Path | None = None) -> int:
-    from .vbs_parser import describe, parse_vbs
+    from .sap_ablauf import describe, parse_vbs
 
     if not vbs_path.is_file():
         print(f"Datei nicht gefunden: {vbs_path}")
         return 2
-    from .vbs_parser import uebernehmen
+    from .sap_ablauf import uebernehmen
 
     target = out_path or _default_flow_path()
     flow, verstanden, zeilen = uebernehmen(vbs_path, target)
@@ -44,8 +44,8 @@ def import_vbs(vbs_path: Path, out_path: Path | None = None) -> int:
 
 
 def show_flow(flow_path: Path | None = None) -> int:
-    from .vbs_parser import describe
-    from .ymatdocs import load_flow
+    from .sap_ablauf import describe
+    from .sap_ymatdocs import load_flow
 
     flow, source = load_flow(flow_path)
     if source is None:
@@ -63,8 +63,8 @@ def dry_run(material: str = "4711", flow_path: Path | None = None) -> int:
     Prüft ohne SAP: Sind alle Platzhalter gesetzt? Stimmt die Reihenfolge?
     Wird ein Download ausgelöst? Landet die Datei am erwarteten Ort?
     """
-    from .fake_session import FakeSession
-    from .ymatdocs import load_flow, run_ymatdocs
+    from .sap_ymatdocs import FakeSession
+    from .sap_ymatdocs import load_flow, run_ymatdocs
 
     flow, source = load_flow(flow_path)
     print(f"Trockenlauf mit Ablauf: {source or 'NOTNAGEL (kein Import!)'}")
@@ -128,8 +128,8 @@ def sap_test(material: str, system: str = "P11",
              flow_path: Path | None = None,
              out_dir: Path | None = None) -> int:
     """Holt eine einzelne Materialnummer über die echte SAP-Verbindung."""
-    from .diagnostics import describe_session, diagnose_failure
-    from .session import SapGuiAdapter
+    from .sap_sitzung import describe_session, diagnose_failure
+    from .sap_sitzung import SapGuiAdapter
 
     out = out_dir or Path.cwd() / "sap_test"
     out.mkdir(parents=True, exist_ok=True)
@@ -161,8 +161,8 @@ def sap_test(material: str, system: str = "P11",
 
 
 def dump_screen(system: str = "P11") -> int:
-    from .diagnostics import describe_session, dump_screen as dump
-    from .session import SapGuiAdapter
+    from .sap_sitzung import describe_session, dump_screen as dump
+    from .sap_sitzung import SapGuiAdapter
 
     adapter = SapGuiAdapter(connection_name=system)
     try:
@@ -185,7 +185,7 @@ def dump_screen(system: str = "P11") -> int:
 
 # ---------------------------------------------------------------- Intern
 def _default_flow_path() -> Path:
-    from ..checks.base import rules_dirs
+    from .regeln import rules_dirs
 
     for directory in rules_dirs():
         if directory.name == "regeln":

@@ -1,8 +1,6 @@
-from drawing_checker.core.models import BBox
-from drawing_checker.drawing.dimensions import (
-    DimKind, _parse_word, estimate_envelope, extract_dimensions,
-)
-from drawing_checker.drawing.pdfdoc import Word
+from drawing_checker.kern import BBox
+from drawing_checker.zeichnung import ( DimKind, _parse_word, estimate_envelope, extract_dimensions, )
+from drawing_checker.zeichnung import Word
 
 
 def w(text: str) -> Word:
@@ -54,7 +52,7 @@ def test_envelope_top_values():
 
 
 def test_extract_from_real_mock(mock_dir):
-    from drawing_checker.drawing.pdfdoc import DrawingPdf
+    from drawing_checker.zeichnung import DrawingPdf
 
     with DrawingPdf(mock_dir / "_arbeit" / "Z_10473217.pdf") as pdf:
         dims = extract_dimensions(pdf)

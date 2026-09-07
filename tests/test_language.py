@@ -1,4 +1,4 @@
-from drawing_checker.checks.language_check import classify_block
+from drawing_checker.pruef_zeichnung import classify_block
 
 
 def test_pure_german():

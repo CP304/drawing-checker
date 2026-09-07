@@ -2,13 +2,9 @@ from pathlib import Path
 
 import openpyxl
 
-from drawing_checker.core.models import (
-    BBox, Finding, JobStatus, MaterialResult, RunConfig, Severity,
-)
-from drawing_checker.core.state import RunState
-from drawing_checker.report.excel_writer import (
-    RESULT_HEADERS, ResultWorkbook, read_materials,
-)
+from drawing_checker.kern import ( BBox, Finding, JobStatus, MaterialResult, RunConfig, Severity, )
+from drawing_checker.kern import RunState
+from drawing_checker.bericht import ( RESULT_HEADERS, ResultWorkbook, read_materials, )
 
 
 def make_config(tmp_path: Path, excel: Path) -> RunConfig:

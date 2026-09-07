@@ -64,10 +64,10 @@ def build_liste(quelle: Path, ziel: Path, count: int) -> Path:
 
 
 def run(count: int, quelle: Path, keep: bool) -> int:
-    from drawing_checker.core.housekeeping import dir_size_mb, free_mb
-    from drawing_checker.core.models import RunConfig
-    from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-    from drawing_checker.sap.mock import MockSapAdapter
+    from drawing_checker.kern import dir_size_mb, free_mb
+    from drawing_checker.kern import RunConfig
+    from drawing_checker.ablauf import Callbacks, Orchestrator
+    from drawing_checker.sap_ymatdocs import MockSapAdapter
 
     tmp = Path(tempfile.mkdtemp(prefix="langlauf_"))
     pakete = tmp / "pakete"

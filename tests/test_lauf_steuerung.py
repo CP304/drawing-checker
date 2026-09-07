@@ -15,10 +15,10 @@ from pathlib import Path
 import openpyxl
 import pytest
 
-from drawing_checker.core.models import JobStatus, RunConfig
-from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-from drawing_checker.core.state import finde_fortsetzbaren_lauf
-from drawing_checker.sap.mock import MockSapAdapter
+from drawing_checker.kern import JobStatus, RunConfig
+from drawing_checker.ablauf import Callbacks, Orchestrator
+from drawing_checker.kern import finde_fortsetzbaren_lauf
+from drawing_checker.sap_ymatdocs import MockSapAdapter
 
 
 def make_config(mock_dir: Path, out: Path, **kw) -> RunConfig:
@@ -126,7 +126,7 @@ def test_abbruch_haelt_an_und_bleibt_fortsetzbar(mock_dir, tmp_path):
 
 def test_download_wartet_nicht_nach_abbruch(tmp_path):
     """Der Abbrechen-Knopf wirkt sofort, nicht erst nach dem Zeitablauf."""
-    from drawing_checker.sap.download import DownloadWatcher
+    from drawing_checker.sap_sitzung import DownloadWatcher
 
     watcher = DownloadWatcher(expected=tmp_path / "nie.zip", watch_dirs=[],
                               timeout_s=120)
@@ -138,10 +138,8 @@ def test_download_wartet_nicht_nach_abbruch(tmp_path):
 
 
 def test_ablauf_bricht_zwischen_den_schritten_ab():
-    from drawing_checker.sap.fake_session import FakeSession
-    from drawing_checker.sap.script_flow import (
-        Abgebrochen, ScriptFlow, Step, play,
-    )
+    from drawing_checker.sap_ymatdocs import FakeSession
+    from drawing_checker.sap_ablauf import ( Abgebrochen, ScriptFlow, Step, play, )
 
     flow = ScriptFlow(steps=[Step("set_text", "wnd[0]/usr/ctxtA", "1"),
                              Step("set_text", "wnd[0]/usr/ctxtB", "2")])
@@ -221,7 +219,7 @@ class _FakeApp:
 
 
 def test_zaehlt_offene_sap_fenster():
-    from drawing_checker.sap.session import zaehle_sessions
+    from drawing_checker.sap_sitzung import zaehle_sessions
 
     app = _FakeApp([[object(), object()], [object()]])
     assert zaehle_sessions(app) == 3
@@ -229,7 +227,7 @@ def test_zaehlt_offene_sap_fenster():
 
 def test_oeffnet_kein_sechstes_fenster(monkeypatch):
     """Bei fünf offenen Fenstern wird nichts mehr geöffnet."""
-    from drawing_checker.sap import session as sapsession
+    from drawing_checker import sap_sitzung as sapsession
 
     class _Fremd:
         class Info:
@@ -243,7 +241,7 @@ def test_oeffnet_kein_sechstes_fenster(monkeypatch):
 
 
 def test_unter_der_grenze_wird_geoeffnet():
-    from drawing_checker.sap import session as sapsession
+    from drawing_checker import sap_sitzung as sapsession
 
     class _Fremd:
         class Info:

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from drawing_checker.checks import base
-from drawing_checker.checks.rules_check import validate_rules
+from drawing_checker import regeln as base
+from drawing_checker.regeln import validate_rules
 
 
 @pytest.fixture()
@@ -17,7 +17,7 @@ def extern_rules(tmp_path, monkeypatch):
 
 
 def reload_materials():
-    from drawing_checker.checks import materials
+    from drawing_checker import pruef_werkstoff as materials
 
     materials.MATERIALS = materials._load_materials()
     materials.OBSOLETE_NORMS = materials._load_obsolete_norms()
@@ -58,7 +58,7 @@ def test_external_profile_override(extern_rules):
         "      LANG.GERMAN: {enabled: true, severity: blocker}\n"
         "  sonderteile:\n"
         "    inherit: default\n", encoding="utf-8")
-    from drawing_checker.core.models import Severity
+    from drawing_checker.kern import Severity
 
     prof = base.load_profile("default")
     assert prof.severity("LANG.GERMAN") == Severity.BLOCKER

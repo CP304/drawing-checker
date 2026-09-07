@@ -3,11 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from drawing_checker.checks.contour_projection import (
-    SCORE_BAD, SCORE_GOOD, compare_contours, extract_views,
-    project_step_silhouettes,
-)
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.pruef_geometrie import ( SCORE_BAD, SCORE_GOOD, compare_contours, extract_views, project_step_silhouettes, )
+from drawing_checker.zeichnung import DrawingPdf
 
 pytest.importorskip("OCP", reason="Konturprojektion benötigt OpenCascade")
 
@@ -55,11 +52,9 @@ def test_wrong_pair_scores_low(mock_dir):
 
 def test_contour_stage_confirms_uncertain(mock_dir, shaft_pdf):
     """Ein 'unsicher' des Maßabgleichs wird durch gute Kontur bestätigt."""
-    from drawing_checker.checks.base import CheckContext, load_profile
-    from drawing_checker.checks.step_compare import (
-        CompareResult, StepGeometry, _apply_contour_stage,
-    )
-    from drawing_checker.core.models import PackageContent
+    from drawing_checker.regeln import CheckContext, load_profile
+    from drawing_checker.pruef_geometrie import ( CompareResult, StepGeometry, _apply_contour_stage, )
+    from drawing_checker.kern import PackageContent
 
     ctx = CheckContext("x", shaft_pdf, PackageContent(), load_profile("default"))
     geometry = StepGeometry(obb_dims=(420.0, 70.0, 70.0), backend="occ")
@@ -71,11 +66,9 @@ def test_contour_stage_confirms_uncertain(mock_dir, shaft_pdf):
 
 
 def test_contour_stage_never_overrides_mismatch(mock_dir, shaft_pdf):
-    from drawing_checker.checks.base import CheckContext, load_profile
-    from drawing_checker.checks.step_compare import (
-        CompareResult, StepGeometry, _apply_contour_stage,
-    )
-    from drawing_checker.core.models import PackageContent
+    from drawing_checker.regeln import CheckContext, load_profile
+    from drawing_checker.pruef_geometrie import ( CompareResult, StepGeometry, _apply_contour_stage, )
+    from drawing_checker.kern import PackageContent
 
     ctx = CheckContext("x", shaft_pdf, PackageContent(), load_profile("default"))
     geometry = StepGeometry(obb_dims=(420.0, 70.0, 70.0), backend="occ")
@@ -94,11 +87,9 @@ def test_contour_stage_disabled_by_profile(mock_dir, shaft_pdf, tmp_path,
         "profiles:\n  default:\n    rules:\n"
         "      GEO.CONTOUR: {enabled: false}\n", encoding="utf-8")
     monkeypatch.setenv("DRAWING_CHECKER_RULES", str(d))
-    from drawing_checker.checks.base import CheckContext, load_profile
-    from drawing_checker.checks.step_compare import (
-        CompareResult, StepGeometry, _apply_contour_stage,
-    )
-    from drawing_checker.core.models import PackageContent
+    from drawing_checker.regeln import CheckContext, load_profile
+    from drawing_checker.pruef_geometrie import ( CompareResult, StepGeometry, _apply_contour_stage, )
+    from drawing_checker.kern import PackageContent
 
     ctx = CheckContext("x", shaft_pdf, PackageContent(), load_profile("default"))
     geometry = StepGeometry(obb_dims=(420.0, 70.0, 70.0), backend="occ")

@@ -7,21 +7,15 @@ from pathlib import Path
 
 import pymupdf
 
-from drawing_checker.checks.base import CheckContext, load_profile
-from drawing_checker.checks.dimension_checks import (
-    check_roughness_vs_tolerance, check_tolerance_order,
-)
-from drawing_checker.checks.doc_checks import run_doc_checks
-from drawing_checker.checks.mass_checks import (
-    check_density_hint, check_mass_plausibility,
-)
-from drawing_checker.checks.process_checks import check_hydrogen_embrittlement
-from drawing_checker.checks.purchasing_checks import run_purchasing_checks
-from drawing_checker.core.models import BBox, PackageContent, Severity
-from drawing_checker.drawing.dimensions import (
-    DimKind, DimValue, extract_dimensions,
-)
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.regeln import CheckContext, load_profile
+from drawing_checker.pruef_bemassung import ( check_roughness_vs_tolerance, check_tolerance_order, )
+from drawing_checker.pruef_zeichnung import run_doc_checks
+from drawing_checker.pruef_werkstoff import ( check_density_hint, check_mass_plausibility, )
+from drawing_checker.pruef_werkstoff import check_hydrogen_embrittlement
+from drawing_checker.pruef_werkstoff import run_purchasing_checks
+from drawing_checker.kern import BBox, PackageContent, Severity
+from drawing_checker.zeichnung import ( DimKind, DimValue, extract_dimensions, )
+from drawing_checker.zeichnung import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
@@ -114,7 +108,7 @@ def test_density_hint_schweigt_wenn_passend(tmp_path):
 
 
 def test_fertiggewicht_schlaegt_rohgewicht(tmp_path):
-    from drawing_checker.drawing.metadata import extract_weight_kg
+    from drawing_checker.zeichnung import extract_weight_kg
 
     ctx = make_ctx(tmp_path, ["Rohteilgewicht: 12,0 kg", "Gewicht: 7,5 kg"])
     assert extract_weight_kg(ctx.pdf) == 7.5

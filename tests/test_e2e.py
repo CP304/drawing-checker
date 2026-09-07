@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from drawing_checker.core.models import JobStatus, RunConfig, Severity
-from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-from drawing_checker.sap.mock import MockSapAdapter
+from drawing_checker.kern import JobStatus, RunConfig, Severity
+from drawing_checker.ablauf import Callbacks, Orchestrator
+from drawing_checker.sap_ymatdocs import MockSapAdapter
 
 
 def make_config(mock_dir: Path, out: Path) -> RunConfig:
@@ -75,7 +75,7 @@ def test_scan_without_text_degrades_gracefully(run):
     assert "DOC.NO_TEXT" in codes or "DOC.OCR" in codes
     # Auf einer per OCR gelesenen Zeichnung darf nichts hart als Fehler
     # gemeldet werden – Erkennungsfehler sind nicht auszuschließen.
-    from drawing_checker.core.models import Severity
+    from drawing_checker.kern import Severity
 
     hart = [f for f in r.findings
             if f.severity >= Severity.ERROR and f.code not in ("DOC.NO_PDF",)]

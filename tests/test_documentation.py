@@ -4,8 +4,8 @@ from pathlib import Path
 import openpyxl
 import pymupdf
 
-from drawing_checker.drawing.metadata import extract_revision_date
-from drawing_checker.drawing.pdfdoc import DrawingPdf
+from drawing_checker.zeichnung import extract_revision_date
+from drawing_checker.zeichnung import DrawingPdf
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
@@ -55,7 +55,7 @@ def test_pdf_metadata_fallback(tmp_path):
 
 # -------------------------------------------------- Fertigungsverfahren
 def test_detect_processes(tmp_path):
-    from drawing_checker.checks.processes import detect_processes
+    from drawing_checker.pruef_zeichnung import detect_processes
 
     pdf = make_pdf(tmp_path, [
         "Werkstoff EN-GJS-400-15, Gussteil nach ISO 8062",
@@ -71,7 +71,7 @@ def test_detect_processes(tmp_path):
 
 
 def test_detect_processes_from_castable_material_only(tmp_path):
-    from drawing_checker.checks.processes import detect_processes
+    from drawing_checker.pruef_zeichnung import detect_processes
 
     pdf = make_pdf(tmp_path, ["Werkstoff EN-GJL-250"])
     assert "Gießen" in detect_processes(pdf)
@@ -79,10 +79,10 @@ def test_detect_processes_from_castable_material_only(tmp_path):
 
 # --------------------------------------------------- Excel-Dokumentation
 def test_excel_contains_documentation_columns(mock_dir, tmp_path):
-    from drawing_checker.core.models import RunConfig
-    from drawing_checker.core.orchestrator import Callbacks, Orchestrator
-    from drawing_checker.report.excel_writer import RESULT_HEADERS
-    from drawing_checker.sap.mock import MockSapAdapter
+    from drawing_checker.kern import RunConfig
+    from drawing_checker.ablauf import Callbacks, Orchestrator
+    from drawing_checker.bericht import RESULT_HEADERS
+    from drawing_checker.sap_ymatdocs import MockSapAdapter
 
     cfg = RunConfig(
         excel_path=mock_dir / "Materialliste_Mock.xlsx",
