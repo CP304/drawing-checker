@@ -41,6 +41,17 @@ python -m drawing_checker.app                      # GUI-Dauerlauf
 Bei Problemen: `--sap-dump` zeigt den Elementbaum des aktuellen SAP-Bildes;
 ein fehlgeschlagener `--sap-test` schreibt automatisch eine Diagnose.
 
+### Nur der Mitschnitt
+
+Alles, was das Werkzeug über die Transaktion weiß, kommt aus der `.vbs`:
+Transaktionscode, Felder, Werte, Download-Auslöser, Datei-Dialog und (bei
+`OpenConnection`) das SAP-System. `vbs_parser.uebernehmen()` bündelt
+Einlesen + Speichern + Kurzbericht für GUI und CLI;
+`vbs_parser.kurzbericht()` sagt, ob der Ablauf brauchbar ist
+(Materialnummer-Feld UND Download-Schritt erkannt). Die GUI ruft
+`_ablauf_uebernehmen()` (ohne Dialoge, damit prüfbar) und legt die
+Meldungen nur darum herum.
+
 ## 3. Umgebung einrichten (neuer Rechner)
 
 **Weitergabe:** `python -m tools.paket_bauen` baut `dist/DrawingChecker.zip`

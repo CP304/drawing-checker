@@ -253,3 +253,63 @@ def test_cli_trockenlauf_ohne_import_meldet_notnagel(tmp_path, capsys,
                         lambda: [tmp_path / "gibtsnicht.yaml"])
     assert sap_cli.dry_run("4711") == 1
     assert "Notnagel" in capsys.readouterr().out
+
+
+# ------------------------------------------------ Nur der Mitschnitt reicht
+def test_verbindung_aus_dem_mitschnitt(tmp_path):
+    """Steht die Verbindung im .vbs, muss niemand das System eintippen."""
+    vbs = tmp_path / "mit_verbindung.vbs"
+    vbs.write_text(
+        'If Not IsObject(application) Then\n'
+        '   Set SapGuiAuto = GetObject("SAPGUI")\n'
+        '   Set application = SapGuiAuto.GetScriptingEngine\n'
+        'End If\n'
+        'Set connection = application.OpenConnection("P11 Produktion", True)\n'
+        'session.findById("wnd[0]/tbar[0]/okcd").text = "/nYMATDOCS"\n'
+        'session.findById("wnd[0]/usr/ctxtP_MATNR").text = "10473215"\n'
+        'session.findById("wnd[0]").sendVKey 8\n'
+        'session.findById("wnd[0]/tbar[1]/btn[13]").press\n',
+        encoding="utf-8")
+    flow = parse_vbs(vbs)
+    assert flow.connection == "P11"
+    assert flow.transaction == "YMATDOCS"
+    assert flow.material_field == "wnd[0]/usr/ctxtP_MATNR"
+
+
+def test_verbindung_bleibt_leer_ohne_angabe():
+    assert parse_vbs(FIXTURE).connection == ""
+
+
+def test_verbindung_ueberlebt_speichern(tmp_path):
+    from drawing_checker.sap.script_flow import ScriptFlow
+
+    flow = parse_vbs(FIXTURE)
+    flow.connection = "Q22"
+    ziel = tmp_path / "flow.yaml"
+    flow.save(ziel)
+    assert ScriptFlow.load(ziel).connection == "Q22"
+
+
+def test_uebernehmen_speichert_und_meldet(tmp_path):
+    """Ein Aufruf: einlesen, speichern, Klartext-Rückmeldung."""
+    from drawing_checker.sap.vbs_parser import uebernehmen
+
+    ziel = tmp_path / "regeln" / "ymatdocs_flow.yaml"
+    flow, verstanden, zeilen = uebernehmen(FIXTURE, ziel)
+    assert ziel.is_file()
+    assert verstanden is True
+    text = "\n".join(zeilen)
+    assert "YMATDOCS" in text
+    assert "Materialnummer geht in" in text
+    assert "Download über" in text
+
+
+def test_kurzbericht_meldet_luecken():
+    from drawing_checker.sap.script_flow import ScriptFlow, Step
+    from drawing_checker.sap.vbs_parser import kurzbericht
+
+    flow = ScriptFlow(steps=[Step("press", "wnd[0]/tbar[0]/btn[0]")])
+    verstanden, zeilen = kurzbericht(flow)
+    assert verstanden is False
+    text = "\n".join(zeilen)
+    assert "Kein Feld für die Materialnummer" in text

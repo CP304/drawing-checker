@@ -12,6 +12,24 @@ Normverstöße und fachliche Widersprüche, vergleicht sie mit dem
 Es entscheidet **nicht**, ob eine Zeichnung freigegeben wird. Es sagt
 Ihnen, wo Sie hinsehen müssen.
 
+## Einmalig: SAP-Mitschnitt einlesen
+
+Das Programm lernt die Transaktion aus **einer einzigen Datei** – dem
+`.vbs`-Mitschnitt, den SAP beim Aufzeichnen erzeugt. Mehr braucht es
+nicht: Transaktionscode, Eingabefelder, der Download-Knopf, der
+Datei-Dialog und sogar das SAP-System werden daraus gelesen.
+
+1. In SAP unten rechts: *Skript aufzeichnen und abspielen* → **Aufzeichnen**.
+2. Die Transaktion einmal komplett durchspielen (Materialnummer eintragen,
+   ausführen, ZIP herunterladen, speichern, mit F3 zurück).
+3. Aufzeichnung stoppen – die Datei liegt meist unter
+   `Dokumente\SAP\SAP GUI\`.
+4. Im Programm auf **„SAP-Mitschnitt (.vbs) einlesen …"** klicken.
+
+Danach steht oben grün, was verstanden wurde: Transaktion, System,
+Materialnummer-Feld und Download-Schritt. Das war es – ab jetzt läuft
+alles automatisch.
+
 ## In fünf Schritten
 
 1. **Excel vorbereiten.** Eine Spalte mit den Materialnummern, eine

@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self._build_step2())
         self.stack.addWidget(self._build_step3())
         self._load_settings()
+        self._flow_status()
 
     # ================================================== Schritt 1: Datei
     def _build_step1(self, profiles: list[str]) -> QWidget:
@@ -151,6 +152,20 @@ class MainWindow(QMainWindow):
         form.addWidget(self.cmb_profile)
         form.addStretch()
         lay.addLayout(form)
+
+        # SAP-Ablauf: alles, was das Programm über die Transaktion weiß,
+        # kommt aus dem .vbs-Mitschnitt. Ohne ihn geht im Echtbetrieb
+        # nichts - deshalb steht er gleich im ersten Schritt.
+        sap = QHBoxLayout()
+        sap.addStretch()
+        self.lbl_flow = QLabel("")
+        sap.addWidget(self.lbl_flow)
+        sap.addSpacing(12)
+        btn_flow = QPushButton("SAP-Mitschnitt (.vbs) einlesen …")
+        btn_flow.clicked.connect(self._pick_vbs)
+        sap.addWidget(btn_flow)
+        sap.addStretch()
+        lay.addLayout(sap)
 
         opts = QHBoxLayout()
         opts.addStretch()
@@ -513,6 +528,15 @@ class MainWindow(QMainWindow):
 
     def _start_run(self, resume: bool | None = None):
         cfg = self._make_config()
+        if cfg.mock_source is None and not self._hat_ablauf():
+            QMessageBox.warning(
+                self, "SAP-Ablauf fehlt",
+                "Das Programm weiß noch nicht, wie die Transaktion bedient "
+                "wird.\n\nBitte zuerst den .vbs-Mitschnitt einlesen "
+                "(Knopf im ersten Schritt). Er ist alles, was gebraucht "
+                "wird – Transaktion, Felder und Download werden daraus "
+                "gelesen.")
+            return
         if resume is None:
             resume = self._frage_fortsetzen(cfg)
         self._save_settings(cfg)
@@ -549,6 +573,96 @@ class MainWindow(QMainWindow):
         self.btn_report.setEnabled(False)
         self.stack.setCurrentIndex(2)
         self.orchestrator.start()
+
+    # ------------------------------------------------- SAP-Ablauf (.vbs)
+    def _flow_status(self) -> None:
+        """Zeigt an, ob ein SAP-Ablauf eingelesen ist - und welcher."""
+        from ..sap.ymatdocs import load_flow
+
+        flow, quelle = load_flow(None)
+        if quelle is None:
+            self.lbl_flow.setText(
+                "<b style='color:#c81e1e'>SAP-Ablauf fehlt</b> – bitte den "
+                "Mitschnitt einlesen")
+            return
+        teile = [f"Ablauf gelesen: <b>{flow.transaction or flow.name}</b>"]
+        if flow.connection:
+            teile.append(f"System {flow.connection}")
+        teile.append(f"{len(flow.steps)} Schritte")
+        self.lbl_flow.setText("<span style='color:#2f7d32'>✓</span> "
+                              + " · ".join(teile))
+        if flow.connection and not self.txt_system.text().strip():
+            self.txt_system.setText(flow.connection)
+
+    def _hat_ablauf(self) -> bool:
+        from ..sap.ymatdocs import load_flow
+
+        return load_flow(None)[1] is not None
+
+    def _vbs_vorschlag(self) -> Path | None:
+        """Sucht eine .vbs an den üblichen Stellen (Aufzeichnungsordner)."""
+        kandidaten: list[Path] = []
+        for ordner in (Path.cwd(),
+                       Path.home() / "Documents" / "SAP" / "SAP GUI",
+                       Path.home() / "Dokumente" / "SAP" / "SAP GUI",
+                       Path.home() / "Downloads"):
+            try:
+                kandidaten.extend(sorted(ordner.glob("*.vbs")))
+            except OSError:
+                continue
+        if not kandidaten:
+            return None
+        return max(kandidaten, key=lambda p: p.stat().st_mtime)
+
+    def _pick_vbs(self) -> None:
+        vorschlag = self._vbs_vorschlag()
+        start = str(vorschlag.parent) if vorschlag else str(Path.home())
+        pfad, _ = QFileDialog.getOpenFileName(
+            self, "SAP-Mitschnitt auswählen", start,
+            "SAP-Skript (*.vbs);;Alle Dateien (*)")
+        if not pfad:
+            return
+        self._lies_vbs(Path(pfad))
+
+    def _ablauf_uebernehmen(self, pfad: Path):
+        """Mitschnitt einlesen, speichern, Anzeige nachziehen.
+
+        Ohne Dialoge - die kommen in `_lies_vbs` obendrauf. So laesst sich
+        der eigentliche Vorgang pruefen, ohne dass ein modales Fenster den
+        Test anhaelt.
+        """
+        from ..sap.cli import _default_flow_path
+        from ..sap.vbs_parser import uebernehmen
+
+        ziel = _default_flow_path()
+        flow, ok, zeilen = uebernehmen(pfad, ziel)
+        if flow.connection:
+            self.txt_system.setText(flow.connection)
+        self._flow_status()
+        return flow, ok, zeilen, ziel
+
+    def _lies_vbs(self, pfad: Path) -> None:
+        """Mitschnitt einlesen, speichern und in Klartext zurueckmelden."""
+        try:
+            flow, ok, zeilen, ziel = self._ablauf_uebernehmen(pfad)
+        except Exception as exc:
+            QMessageBox.critical(self, "Mitschnitt nicht lesbar",
+                                 f"Die Datei konnte nicht ausgewertet "
+                                 f"werden:\n{klartext(exc)}")
+            return
+
+        text = "\n".join(zeilen)
+        if ok:
+            QMessageBox.information(
+                self, "Mitschnitt eingelesen",
+                f"Der Ablauf wurde verstanden:\n\n{text}\n\n"
+                f"Gespeichert unter {ziel}. Sie können jetzt starten.")
+        else:
+            QMessageBox.warning(
+                self, "Mitschnitt unvollständig verstanden",
+                f"{text}\n\nBitte die Aufzeichnung wiederholen und dabei "
+                f"die Materialnummer eintragen und das Paket herunterladen – "
+                f"oder die Datei {ziel.name} von Hand ergänzen.")
 
     def _frage_fortsetzen(self, cfg) -> bool:
         """Bietet von selbst an, einen unfertigen Lauf fortzusetzen.

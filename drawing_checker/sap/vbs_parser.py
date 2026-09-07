@@ -40,6 +40,12 @@ RE_CALL_ARG = re.compile(
     r'findById\(\s*"([^"]+)"\s*\)\s*\.\s*(\w+)\s+(.+?)\s*$', re.IGNORECASE)
 
 RE_TRANSACTION = re.compile(r'^/n?\s*(\w+)', re.IGNORECASE)
+# Verbindung aus dem Mitschnitt: application.OpenConnection "P11 Produktion"
+# bzw. OpenConnectionByConnectionString. Aus dem Eintrag wird das erste
+# Wort als Systemname genommen ("P11 [PUBLIC]" -> "P11").
+RE_OPEN_CONNECTION = re.compile(
+    r'OpenConnection(?:ByConnectionString)?\s*\(?\s*"([^"]+)"', re.IGNORECASE)
+RE_SYSTEM_HINT = re.compile(r"\b([A-Z][A-Z0-9]{2})\b")
 # Werte, die wie eine Materialnummer aussehen (6–18 Stellen, ggf. führende 0).
 RE_MATERIAL_VALUE = re.compile(r"^\d{6,18}$")
 RE_PATH_VALUE = re.compile(r"^[A-Za-z]:\\|^\\\\|/")
@@ -82,6 +88,10 @@ def parse_vbs(path: Path | str, *, keep_cosmetic: bool = False) -> ScriptFlow:
         line = raw.strip()
         if not line or line.startswith("'") or line.lower().startswith("rem "):
             continue
+        if not flow.connection:
+            m = RE_OPEN_CONNECTION.search(line)
+            if m:
+                flow.connection = _system_aus_eintrag(m.group(1))
         if "findbyid" not in line.lower():
             continue
 
@@ -123,6 +133,17 @@ def parse_vbs(path: Path | str, *, keep_cosmetic: bool = False) -> ScriptFlow:
     _apply_material_placeholder(flow, material_values)
     _mark_download_step(flow)
     return flow
+
+
+def _system_aus_eintrag(eintrag: str) -> str:
+    """Systemname aus dem Verbindungseintrag des SAP Logon.
+
+    Die Einträge heißen z. B. "P11 Produktion" oder "P11 [PUBLIC]" – für
+    die Verbindung genügt der Systemname davor.
+    """
+    eintrag = eintrag.strip()
+    m = RE_SYSTEM_HINT.search(eintrag.upper())
+    return m.group(1) if m else eintrag.split()[0] if eintrag else ""
 
 
 def _parse_line(line: str) -> Step | None:
@@ -268,6 +289,7 @@ def describe(flow: ScriptFlow) -> str:
     lines = [
         f"Ablauf {flow.name!r}"
         + (f", Transaktion {flow.transaction}" if flow.transaction else ""),
+        f"SAP-System: {flow.connection or 'nicht im Mitschnitt enthalten'}",
         f"Materialnummer-Feld: {flow.material_field or 'NICHT ERKANNT'}",
         f"Schritte: {len(flow.steps)}",
         "",
@@ -293,3 +315,44 @@ def describe(flow: ScriptFlow) -> str:
             "setzen und material_field eintragen.",
         ]
     return "\n".join(lines)
+
+
+def kurzbericht(flow: ScriptFlow) -> tuple[bool, list[str]]:
+    """Klartext-Rückmeldung zu einem eingelesenen Mitschnitt.
+
+    Liefert (verstanden, Zeilen). „Verstanden" heißt: Das Programm weiß, in
+    welches Feld die Materialnummer gehört und womit der Download ausgelöst
+    wird – mehr braucht es nicht, alles andere steht im Ablauf.
+    """
+    zeilen = [
+        f"Transaktion: {flow.transaction or 'nicht erkannt'}",
+        f"SAP-System: {flow.connection or 'nicht im Mitschnitt'}",
+        f"Schritte: {len(flow.steps)}",
+    ]
+    if flow.material_field:
+        zeilen.append(f"Materialnummer geht in: {flow.material_field}")
+    else:
+        zeilen.append("ACHTUNG: Kein Feld für die Materialnummer erkannt.")
+    if flow.download_step_index is not None:
+        schritt = flow.steps[flow.download_step_index]
+        zeilen.append(f"Download über: {schritt.element or schritt.action}")
+    else:
+        zeilen.append("ACHTUNG: Kein Download-Schritt erkannt.")
+    ok = bool(flow.material_field and flow.download_step_index is not None)
+    return ok, zeilen
+
+
+def uebernehmen(pfad: Path, ziel: Path) -> tuple[ScriptFlow, bool, list[str]]:
+    """Mitschnitt einlesen, als Ablauf speichern, Kurzbericht liefern.
+
+    Gemeinsame Logik für GUI und Kommandozeile – ohne Dialoge, damit sie
+    sich testen lässt.
+    """
+    flow = parse_vbs(pfad)
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    flow.save(ziel)
+    from .ymatdocs import _flow_cache
+
+    _flow_cache.clear()          # neu eingelesenen Ablauf sofort verwenden
+    ok, zeilen = kurzbericht(flow)
+    return flow, ok, zeilen

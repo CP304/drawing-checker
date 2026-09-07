@@ -38,12 +38,21 @@ Programmieren, sondern durch eine Aufzeichnung aus SAP:
     Skripting den Haken bei "Hinweis bei Skriptanbindung" ENTFERNEN,
     sonst kommt bei jeder Materialnummer eine Rueckfrage.
 
+ A2) Mehr wird nicht gebraucht: Aus der .vbs liest das Programm den
+     Transaktionscode, die Eingabefelder, den Download-Knopf, den
+     Datei-Dialog UND das SAP-System heraus. Nichts davon muss von
+     Hand eingetragen werden.
+
  B) Im Menue von Start.bat:
       Punkt 2  -> die .vbs-Datei einlesen
                   (Datei einfach ins Fenster ziehen und Enter)
       Punkt 3  -> Trockenlauf ohne SAP: prueft, ob der Ablauf sitzt
       Punkt 4  -> eine echte Materialnummer testweise holen
       Punkt 1  -> der eigentliche Lauf ueber die Excel-Liste
+
+    Der Mitschnitt laesst sich auch direkt im Programmfenster einlesen
+    (Knopf "SAP-Mitschnitt (.vbs) einlesen ..."). Ohne Mitschnitt
+    verweigert das Programm den Start und sagt, was fehlt.
 
  C) Wenn Punkt 4 scheitert: Punkt 5 zeigt den Aufbau des aktuellen
     SAP-Bildes. Damit laesst sich in der Datei

@@ -80,6 +80,9 @@ class ScriptFlow:
     # Element-IDs, die für die Automatisierung besonders wichtig sind.
     material_field: str = ""
     download_step_index: int | None = None
+    # Verbindung/System aus dem Mitschnitt (z. B. "P11"), falls die
+    # Aufzeichnung sie hergibt – dann muss niemand sie eintippen.
+    connection: str = ""
     notes: str = ""
 
     # ------------------------------------------------------------ Persistenz
@@ -89,6 +92,7 @@ class ScriptFlow:
             "transaction": self.transaction,
             "material_field": self.material_field,
             "download_step_index": self.download_step_index,
+            "connection": self.connection,
             "notes": self.notes,
             "steps": [
                 {k: v for k, v in {
@@ -130,6 +134,7 @@ class ScriptFlow:
             steps=steps,
             material_field=data.get("material_field", ""),
             download_step_index=data.get("download_step_index"),
+            connection=data.get("connection", ""),
             notes=data.get("notes", ""),
         )
 

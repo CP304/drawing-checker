@@ -24,12 +24,15 @@ def import_vbs(vbs_path: Path, out_path: Path | None = None) -> int:
     if not vbs_path.is_file():
         print(f"Datei nicht gefunden: {vbs_path}")
         return 2
-    flow = parse_vbs(vbs_path)
-    print(describe(flow))
+    from .vbs_parser import uebernehmen
 
     target = out_path or _default_flow_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    flow.save(target)
+    flow, verstanden, zeilen = uebernehmen(vbs_path, target)
+    print(describe(flow))
+    print()
+    print("Kurzfassung:")
+    for zeile in zeilen:
+        print(f"  {zeile}")
     print(f"\nAblauf gespeichert: {target}")
     print("Nächster Schritt: `drawing-checker --sap-dry-run 4711` "
           "(prüft den Ablauf ohne SAP), danach `--sap-test <echte Nummer>`.")

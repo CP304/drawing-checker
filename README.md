@@ -337,6 +337,13 @@ python -m drawing_checker.app --sap-test   10473215           # 3. echt, ein Mat
 python -m drawing_checker.app                                 # 4. Dauerlauf (GUI)
 ```
 
+**Der Mitschnitt ist die einzige Einrichtung.** Aus ihm kommen
+Transaktionscode, Eingabefelder samt Werten, Download-Auslöser,
+Datei-Dialog und – falls die Aufzeichnung mit `OpenConnection` beginnt –
+auch das SAP-System. Die GUI hat dafür einen eigenen Knopf, zeigt an, ob
+ein Ablauf vorhanden ist, meldet in Klartext zurück, was sie verstanden
+hat, und verweigert den Start, solange nichts eingelesen wurde.
+
 Weitere Werkzeuge: `--sap-show-flow` (gespeicherten Ablauf anzeigen),
 `--sap-dump` (Elementbaum des aktuellen SAP-Bildes – liefert die
 Element-IDs), `--sap-flow <yaml>` (abweichender Ablaufpfad).
