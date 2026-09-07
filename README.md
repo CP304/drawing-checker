@@ -8,13 +8,319 @@ Zeichnung gegen das STEP-Modell (Erkennung falsch gespeicherter
 Konfigurationen). Ergebnisse: annotiertes Zeichnungsbild je Materialnummer
 plus Rückschrieb in eine Kopie der Input-Excel.
 
-Konzept und Architektur: siehe [Übergabe](#übergabe--stand-und-nächste-schritte).
+**Das ganze Projekt sind drei Dateien:**
+
+| Datei | Was drin ist |
+|---|---|
+| `drawing_checker.py` | Das Programm – Prüfregeln, SAP-Anbindung, OCR, Geometrie, GUI, Berichte. Dazu eingebettet: die Wissenspakete (YAML), die Mockdaten-Erzeugung, die Werkzeuge (Paketbau, Messplätze) und am Dateiende die komplette Testsuite. |
+| `Start.bat` | Einrichtung und Menü für Windows. Doppelklick genügt. |
+| `README.md` | Diese Datei: Anwenderanleitung, Entwicklerdoku, Regelkatalog, SAP-Durchstich, Übergabe. |
+
+Die Datei `drawing_checker.py` ist bewusst lang (rund 17 000 Zeilen). Sie
+ist in Abschnitte gegliedert, jeder mit einem Kopf `# ====` und Namen –
+im Editor nach `# ==== ` suchen oder die Gliederung unten benutzen. Warum
+eine Datei: Weitergabe, Upload und Übersicht litten unter über hundert
+Einzeldateien; eine Datei kann man nicht falsch zusammenstellen.
+
+Inhalt dieser README:
+
+1. [Für Anwender: Einstieg und Bedienung](#für-anwender-einstieg-und-bedienung)
+2. [Für die Entwicklung](#für-die-entwicklung) – Installation, Aufrufe, Gliederung der Datei
+3. [Fachliche Bausteine](#geometrieprüfung-im-detail) – Geometrie, Maßstab, OCR, Gewicht, Laufsteuerung
+4. [SAP-Durchstich – Ablauf für den Einsatztag](#sap-durchstich--ablauf-für-den-einsatztag)
+5. [Regelkatalog: alle Regeln im Klartext](#regelkatalog-alle-regeln-im-klartext)
+6. [Kalibrierzeichnungen: Herkunft](#kalibrierzeichnungen-herkunft)
+7. [Übergabe – Stand und nächste Schritte](#übergabe--stand-und-nächste-schritte)
+8. [Hinweise für Claude-Sessions](#hinweise-für-claude-sessions)
+
+---
+
+# Für Anwender: Einstieg und Bedienung
+
+```text
+===========================================================
+ DRAWING CHECKER - Bitte zuerst lesen (2 Minuten)
+===========================================================
+
+SO GEHT ES LOS
+--------------
+1. Es gibt zwei Wege hierher - beide fuehren zum selben Ordner:
+
+   a) DrawingChecker_Setup.bat doppelklicken. Sie entpackt sich
+      selbst in den Ordner DrawingChecker daneben und macht bei
+      Schritt 2 von allein weiter. Fertig - Schritt 2 entfaellt.
+      (Meldet der Virenscanner etwas, Weg b) nehmen.)
+
+   b) DrawingChecker.zip entpacken: Rechtsklick -> "Alle
+      extrahieren ...", Ziel zum Beispiel: C:\Tools\DrawingChecker
+      WICHTIG: Nicht aus dem ZIP heraus starten - sonst gehen alle
+      Ergebnisse beim Schliessen verloren.
+
+2. Doppelklick auf   Start.bat
+
+   Beim ersten Mal richtet sich das Programm selbst ein. Das dauert
+   je nach Netz 5 bis 15 Minuten. Bitte das schwarze Fenster offen
+   lassen, auch wenn zwischendurch nichts passiert.
+
+3. Danach erscheint ein Menue. Alles Weitere laeuft ueber Zahlen -
+   es muss nichts eingetippt werden ausser der jeweiligen Nummer.
+
+
+DER ERSTE TAG - REIHENFOLGE
+---------------------------
+Zuerst muss dem Programm einmalig beigebracht werden, wie die
+SAP-Transaktion YMATDOCS bedient wird. Das geschieht nicht durch
+Programmieren, sondern durch eine Aufzeichnung aus SAP:
+
+ A) In SAP:  Statusleiste unten rechts -> "Skript aufzeichnen und
+    abspielen" -> Aufzeichnen. Dann die Transaktion EINMAL komplett
+    durchspielen: /nYMATDOCS, Materialnummer eintragen, ausfuehren,
+    ZIP herunterladen, Ordner und Dateiname im Dialog eintragen,
+    speichern, mit F3 zurueck auf das Selektionsbild.
+    Aufzeichnung stoppen. Die .vbs liegt meist unter
+    Dokumente\SAP\SAP GUI\.
+
+    Tipp: Vorher unter SAP Logon -> Optionen -> Barrierefreiheit &
+    Skripting den Haken bei "Hinweis bei Skriptanbindung" ENTFERNEN,
+    sonst kommt bei jeder Materialnummer eine Rueckfrage.
+
+ A2) Mehr wird nicht gebraucht: Aus der .vbs liest das Programm den
+     Transaktionscode, die Eingabefelder, den Download-Knopf, den
+     Datei-Dialog UND das SAP-System heraus. Nichts davon muss von
+     Hand eingetragen werden.
+
+ B) Im Menue von Start.bat:
+      Punkt 2  -> die .vbs-Datei einlesen
+                  (Datei einfach ins Fenster ziehen und Enter)
+      Punkt 3  -> Trockenlauf ohne SAP: prueft, ob der Ablauf sitzt
+      Punkt 4  -> eine echte Materialnummer testweise holen
+      Punkt 1  -> der eigentliche Lauf ueber die Excel-Liste
+
+    Der Mitschnitt laesst sich auch direkt im Programmfenster einlesen
+    (Knopf "SAP-Mitschnitt (.vbs) einlesen ..."). Ohne Mitschnitt
+    verweigert das Programm den Start und sagt, was fehlt.
+
+ C) Wenn Punkt 4 scheitert: Punkt 5 zeigt den Aufbau des aktuellen
+    SAP-Bildes. Damit laesst sich in der Datei
+    regeln\ymatdocs_flow.yaml die passende Element-Nummer eintragen.
+    Ausfuehrlich erklaert in README.md, Abschnitt SAP-Durchstich.
+
+
+WENN ETWAS KLEMMT
+-----------------
+Das schwarze Fenster bleibt bei Fehlern offen und nennt die Ursache
+im Klartext. Die drei haeufigsten:
+
+ * "Kein Python ab Version 3.10 gefunden"
+   -> Python fehlt. Ueber das Firmen-Softwarecenter anfordern oder
+      von python.org installieren ("Add python.exe to PATH" ankreuzen).
+
+ * "Die Installation ist fehlgeschlagen"
+   -> Meist kein Zugang zum Paketserver (Proxy). Die Datei
+      logs\einrichtung.log enthaelt die genaue Meldung.
+      Fuer die IT: benoetigt wird Zugriff auf pypi.org bzw. den
+      Firmen-Spiegel. Mit gesetztem Proxy geht es so:
+         set HTTPS_PROXY=http://proxy.firma.de:8080
+         Start.bat
+      Gibt es gar keinen Netzzugang, koennen die Pakete auf einem
+      anderen Rechner vorbereitet werden:
+         pip download -d wheels pymupdf openpyxl pillow pandas PyYAML ^
+             PySide6-Essentials cadquery-ocp pytesseract pywin32
+      Den Ordner "wheels" mitliefern und einmalig aufrufen:
+         .venv\Scripts\python -m pip install --no-index ^
+             --find-links wheels pymupdf openpyxl pillow pandas PyYAML ^
+             PySide6-Essentials cadquery-ocp pytesseract pywin32
+
+ * "Das Programm laeuft aus dem ZIP-Archiv heraus"
+   -> Erst entpacken (Schritt 1 oben).
+
+Zum Nachlesen:
+  README.md           diese Datei. Weiter unten: SAP-Durchstich, alle
+                      98 Pruefregeln im Klartext, eigene Werkstoffe und
+                      Normen pflegen, Uebergabe an die Entwicklung
+
+===========================================================
+
+
+===========================================================
+ AUSFUEHRLICHE ANLEITUNG
+===========================================================
+
+DRAWING CHECKER - KURZANLEITUNG
+===============================
+
+Fuer Anwenderinnen und Anwender. Zwei Seiten, mehr braucht es nicht.
+
+
+Was das Programm tut
+--------------------
+
+Es holt zu jeder Materialnummer Ihrer Liste das Zeichnungspaket aus SAP
+(Transaktion YMATDOCS), prueft die Zeichnung auf Vollstaendigkeit,
+Normverstoesse und fachliche Widersprueche, vergleicht sie mit dem
+3D-Modell - und schreibt das Ergebnis in Ihre Excel-Tabelle zurueck.
+
+Es entscheidet nicht, ob eine Zeichnung freigegeben wird. Es sagt
+Ihnen, wo Sie hinsehen muessen.
+
+
+Einmalig: SAP-Mitschnitt einlesen
+---------------------------------
+
+Das Programm lernt die Transaktion aus einer einzigen Datei - dem
+.vbs-Mitschnitt, den SAP beim Aufzeichnen erzeugt. Mehr braucht es
+nicht: Transaktionscode, Eingabefelder, der Download-Knopf, der
+Datei-Dialog und sogar das SAP-System werden daraus gelesen.
+
+1. In SAP unten rechts: *Skript aufzeichnen und abspielen* -> Aufzeichnen.
+2. Die Transaktion einmal komplett durchspielen (Materialnummer eintragen,
+   ausfuehren, ZIP herunterladen, speichern, mit F3 zurueck).
+3. Aufzeichnung stoppen - die Datei liegt meist unter
+   Dokumente\SAP\SAP GUI\.
+4. Im Programm auf "SAP-Mitschnitt (.vbs) einlesen ..." klicken.
+
+Danach steht oben gruen, was verstanden wurde: Transaktion, System,
+Materialnummer-Feld und Download-Schritt. Das war es - ab jetzt laeuft
+alles automatisch.
+
+
+In fuenf Schritten
+-----------------
+
+1. Excel vorbereiten. Eine Spalte mit den Materialnummern, eine
+   Ueberschriftenzeile. Sonst nichts. Die Datei darf ruhig weitere Spalten
+   enthalten.
+2. Programm starten: Doppelklick auf Start.bat im
+   Programmordner (oder auf die Verknuepfung "Drawing Checker" auf dem
+   Desktop). Beim allerersten Start richtet sich das Programm selbst ein -
+   das dauert einige Minuten, das Fenster dabei offen lassen. SAP muss
+   offen und angemeldet sein; das Programm nutzt Ihre bestehende Anmeldung.
+3. Datei waehlen und auf die Spalte zeigen, in der die Materialnummern
+   stehen. Das Programm zeigt eine Vorschau der erkannten Nummern.
+4. Starten. Der Lauf arbeitet die Liste selbststaendig ab. Sie koennen
+   ihn pausieren und fortsetzen; nach einem Abbruch (auch nach einem
+   SAP-Absturz oder einem Neustart des Rechners) macht er dort weiter, wo
+   er stehengeblieben ist.
+5. Ergebnis ansehen. Am Ende oeffnet sich der Bericht. Die
+   Ergebnis-Excel liegt neben Ihrer Ausgangsdatei mit dem Zusatz
+   _geprueft.
+
+
+Waehrend des Laufs
+-----------------
+
+- Die Ergebnis-Excel waechst mit. Nach jeder Materialnummer steht die
+  Zeile auf der Platte. Auch wenn der Rechner ausgeht, ist alles bis dahin
+  gesichert.
+- Blockweise: Nach je 25 Materialnummern (einstellbar) sichert das
+  Programm einen Zwischenstand, schreibt den Bericht neu und raeumt SAP auf.
+  Der Fortschrittsbalken zeigt "Block 3 von 12".
+- Pause haelt den Lauf an, ohne etwas zu verlieren; Abbrechen beendet
+  ihn sauber - auch mitten in einem Download.
+- Beim naechsten Start fragt das Programm von selbst: "Zu dieser Liste
+  gibt es einen unfertigen Lauf, 240 Nummern sind geprueft - dort
+  fortsetzen?" Ein Klick auf Ja, und es geht genau dort weiter.
+- SAP: Das Programm nutzt Ihre bestehende Anmeldung und oeffnet
+  hoechstens ein eigenes Fenster - nie mehr als fuenf insgesamt. Sind schon
+  fuenf offen, meldet es das, statt Ihnen das letzte Fenster wegzunehmen.
+
+
+Was Sie zurueckbekommen
+----------------------
+
+Je Materialnummer eine Zeile mit:
+
+| Spalte | Inhalt |
+|---|---|
+| Status | OK / Findings / Fehlgeschlagen / Uebersprungen |
+| Schwerste Bewertung | K.O., Fehler, Pruefen oder Hinweis |
+| Festgestellte Maengel | im Klartext, mit Regelcode |
+| Letzte Aenderung | das spaeteste Datum, das auf der Zeichnung steht |
+| Fertigungsverfahren | was das Programm erkannt hat (Fraesen, Schweissen ...) |
+| Bild | Verweis auf die annotierte Zeichnung |
+| Geprueft am | Datum und Uhrzeit der Pruefung |
+
+Dazu im Ergebnisordner: das annotierte Zeichnungsbild je Materialnummer
+(nummerierte Fundstellen mit Legende), ein HTML-Bericht mit den haeufigsten
+Maengeln und eine findings.csv fuer eigene Auswertungen.
+
+
+Die vier Bewertungen
+--------------------
+
+- K.O. - Paket unbrauchbar oder das 3D-Modell passt nicht zur
+  Zeichnung. Nicht anfragen, erst klaeren.
+- Fehler - klare Beanstandung, die Zeichnung gehoert nachgebessert.
+- Pruefen - das Programm ist sich nicht sicher. Kurz ansehen, oft ist
+  es in Ordnung.
+- Hinweis - nur zur Information.
+
+
+Wenn etwas nicht stimmt
+-----------------------
+
+- Eine Meldung wirkt falsch. Das annotierte Bild zeigt, worauf sie sich
+  bezieht. Melden Sie den Regelcode (z. B. GT.GENERAL_TOL) an die
+  Systembetreuung - Regeln lassen sich einzeln abschalten oder anders
+  bewerten, ohne das Programm zu aendern.
+- "Pruefung basiert auf OCR". Die Zeichnung war ein Scan ohne
+  Textebene. Die Erkennung ist dann unsicher, deshalb wird nichts hart als
+  Fehler gemeldet. Bei Beanstandungen bitte die Zeichnung selbst ansehen.
+- Der Lauf haelt an. Meist ist die Platte voll oder SAP haengt. Die
+  Meldung sagt, was zu tun ist; nach dem Beheben mit "Fortsetzen"
+  weiterlaufen lassen - bereits gepruefte Zeilen bleiben erhalten.
+- Die Ergebnisdatei laesst sich nicht schreiben. Sie ist in Excel
+  geoeffnet. Das Programm weicht auf eine Datei mit dem Zusatz _neu aus;
+  besser: Excel schliessen, solange der Lauf laeuft.
+
+
+Wenn der Start nicht klappt
+---------------------------
+
+Das schwarze Fenster bleibt bei Problemen offen und nennt die Ursache im
+Klartext - meist eines von dreien:
+
+- "Kein Python ab Version 3.10 gefunden": Python fehlt auf dem Rechner.
+  Die Meldung nennt den Downloadlink; im Firmenumfeld ueber das
+  Softwarecenter anfordern.
+- "Die Installation ist fehlgeschlagen": meist kein Zugang zum
+  Paketserver (Proxy). Bitte die Datei logs\einrichtung.log an die
+  Systembetreuung geben.
+- "Die vorhandene Umgebung ist unbrauchbar": passiert, wenn der Ordner
+  verschoben oder kopiert wurde. Das Programm baut sie selbst neu auf;
+  erzwingen laesst sich das mit Start.bat neu.
+
+
+Was das Programm nicht kann
+---------------------------
+
+- Es liest keine Konstruktionsabsicht. Ob eine enge Toleranz noetig ist,
+  entscheiden Sie.
+- Bei Scans ohne Textebene sieht es nur, was die Texterkennung hergibt.
+- Es prueft die Zeichnung, nicht das Bauteil. Ein sauber gezeichneter
+  Unsinn bleibt unentdeckt.
+```
+
+---
+
+# Für die Entwicklung
 
 ## Installation (Entwicklungsrechner)
 
+Es gibt kein Paket zu installieren – nur Abhängigkeiten:
+
 ```bash
-pip install -e .[occ,dev]          # occ = exakte STEP-Analyse (empfohlen)
-pip install -e .[sap]              # nur Windows: SAP GUI Scripting (pywin32)
+pip install "pymupdf>=1.24" "openpyxl>=3.1" "pillow>=10" "pandas>=2" "PyYAML>=6" "PySide6-Essentials>=6.6"
+pip install "cadquery-ocp>=7.7"     # exakte STEP-Analyse (empfohlen; sonst nur Bounding-Box)
+pip install "pytesseract>=0.3"      # OCR für gescannte Zeichnungen (+ Tesseract-Programm)
+pip install "pywin32>=306"          # nur Windows: SAP GUI Scripting
+pip install "pytest>=8"             # Tests
+```
+
+Genau diese Liste steht auch in `Start.bat` (Abschnitt 4) – sie ist dort
+die einzige Quelle für den Anwenderrechner. Ändert sich die Liste, dort
+`PAKETSTAND` hochzählen, dann installiert `Start.bat` beim nächsten Start
+nach.
 
 **Auf dem Anwenderrechner (Windows) genügt ein Doppelklick auf
 `Start.bat`.** Die Datei richtet beim ersten Start alles ein (virtuelle
@@ -32,23 +338,74 @@ Start.bat --sap-import-vbs x.vbs Optionen an das Programm durchreichen
 Zusatzpakete werden einzeln installiert: fällt eines aus (z. B. das große
 3D-Paket hinter einem Proxy), läuft der Rest trotzdem, und die Einschränkung
 wird benannt. Meldungen der Einrichtung landen in `logs/einrichtung.log`.
-pip install -e .[ocr]              # optional: OCR für gescannte Zeichnungen
-                                   # (zusätzlich Tesseract-Binary installieren)
-```
 
-Ohne `[occ]` fällt der STEP-Abgleich auf einen eingebauten
-Punktwolken-Parser zurück (nur Bounding-Box, kein Volumen/Zylinder).
-
-## Nutzung
+## Alle Aufrufe
 
 ```bash
-drawing-checker                       # GUI, echtes SAP (P11), nur Windows
-drawing-checker --mock mockdata/out   # GUI im Testmodus (ZIPs aus Ordner)
-
-# Ohne GUI (Automatisierung/Tests):
-drawing-checker --headless --mock mockdata/out \
+python drawing_checker.py                          # GUI (echtes SAP P11, nur Windows)
+python drawing_checker.py --mock mockdata/out      # GUI im Testmodus (ZIPs aus Ordner)
+python drawing_checker.py --headless --mock mockdata/out \
     --excel mockdata/out/Materialliste_Mock.xlsx --column C
+python drawing_checker.py --check-rules            # Wissenspakete validieren
+python drawing_checker.py --list-rules             # Regelkatalog je Profil
+python drawing_checker.py --export-rules [ordner]  # YAMLs zum Bearbeiten nach regeln/
+python drawing_checker.py --ocr-check [x.pdf]      # OCR prüfen/vorführen
+python drawing_checker.py --sap-import-vbs x.vbs   # Mitschnitt -> Ablauf
+python drawing_checker.py --sap-dry-run 10473215   # Ablauf ohne SAP prüfen
+python drawing_checker.py --sap-test 10473215      # eine Materialnummer echt holen
+python drawing_checker.py --sap-dump               # Elementbaum des SAP-Bildes
+
+python drawing_checker.py mockdata bauen           # Mockpakete nach mockdata/out
+python drawing_checker.py mockdata quellen         # Kalibrierzeichnungen auspacken
+python drawing_checker.py mockdata fehler <q> <z>  # Referenz- und Fehlerpakete
+
+python drawing_checker.py messen ocr               # OCR-Güte messen
+python drawing_checker.py messen langlauf --count 200
+python drawing_checker.py messen kalibrier <ordner>
+python drawing_checker.py messen normen <csv> <yaml>
+
+python drawing_checker.py paket [--nur zip|bat]    # Auslieferung nach dist/
+
+python -m pytest drawing_checker.py -q             # Tests (~6 min, liegen am Dateiende)
+QT_QPA_PLATFORM=offscreen python drawing_checker.py --mock mockdata/out  # GUI headless
 ```
+
+## Gliederung von drawing_checker.py
+
+Die Abschnitte in der Reihenfolge, wie sie in der Datei stehen. Jeder
+beginnt mit `# ==== <name>`:
+
+| Abschnitt | Inhalt |
+|---|---|
+| `wissenspakete` | Die vier YAML-Wissenspakete als Text (profiles, materials, norms, beschaffung) |
+| `kern` | Datenmodelle, Paketzugriff, Laufzustand (Resume), Haushalt (Speicher, Platte) |
+| `zeichnung` | PDF laden, Metadaten, Maßextraktion, Form- und Lagetoleranzen |
+| `regeln` | Regelmechanik, Profile, Validierung der YAMLs, `--export-rules` |
+| `pruef_werkstoff` | Werkstoff, Verfahren, Gewicht, Beschaffung |
+| `pruef_zeichnung` | Vollständigkeit, Schriftfeld, Sprache, Maßstab, Verfahrenserkennung |
+| `pruef_bemassung` | Maße, Toleranzen, GPS |
+| `pruef_geometrie` | STEP-Abgleich, Silhouettenprojektion (alles OpenCascade, träge geladen) |
+| `ocr` | Texterkennung für Scans und ihre Selbstprüfung |
+| `bericht` | Markiertes Bild, Excel-Rückschrieb, HTML-Bericht |
+| `sap_sitzung` | Adapter-Schnittstelle, Sitzung, Fenstergrenze, Popups, Download, Wächter, Diagnose |
+| `sap_ablauf` | .vbs-Mitschnitt einlesen und abspielen |
+| `sap_ymatdocs` | Echter YMATDOCS-Weg, Mock aus Ordner, Testsitzung |
+| `sap_cli` | Kommandozeilenwerkzeuge rund um SAP |
+| `ablauf` | Orchestrator: Liste abarbeiten, blockweise, abbrechbar, fortsetzbar |
+| `gui` | Hauptfenster (PySide6; ohne PySide6 läuft alles andere weiter) |
+| `app` | Einstieg, Argumente, Unterbefehle |
+| `mockdata` | Mockpakete, Kalibrierzeichnungen, Fehlerinjektion |
+| `paket` | Auslieferung: ZIP und selbstentpackende .bat |
+| `messen` | Messplätze: OCR-Güte, Langlauf, Kalibrierauswertung, Normimport |
+| `tests` | Die Testsuite – nur aktiv, wenn pytest die Datei lädt |
+
+Die Wissenspakete sind eingebettet, damit das Programm eine Datei bleibt.
+Bearbeiten: `python drawing_checker.py --export-rules` schreibt die vier
+YAMLs nach `regeln/`; was dort liegt, überlagert die eingebauten Regeln
+(auch über `DRAWING_CHECKER_RULES`). Änderungen, die ins Programm sollen,
+kommen in den Abschnitt `wissenspakete`.
+
+## Nutzung
 
 Ablauf in der GUI (3 Schritte): Excel wählen → Spalte mit den
 Materialnummern **anklicken** → Prüfung starten. Pause/Abbruch jederzeit;
@@ -65,7 +422,7 @@ Ergebnisse landen neben der Input-Excel:
 ## Mockdaten
 
 ```bash
-python -m mockdata bauen            # erzeugt mockdata/out/
+python drawing_checker.py mockdata bauen            # erzeugt mockdata/out/
 ```
 
 Erzeugt realistische A3-Zeichnungen (Schweißkonsole, Gussgehäuse,
@@ -84,11 +441,14 @@ Ergebnisse:
 ## Tests
 
 ```bash
-python -m pytest tests/ -q            # inkl. End-to-End über die Mockdaten
+python -m pytest drawing_checker.py -q        # inkl. End-to-End über die Mockdaten
 ```
 
-Der End-to-End-Test simuliert auch einen SAP-Absturz (Mock) und den
-Resume-Pfad.
+Die Tests stehen am Ende von `drawing_checker.py` unter `if "pytest" in
+sys.modules:` – beim normalen Start existieren sie nicht, pytest sieht sie.
+Mockdaten werden je Lauf erzeugt; die Tests an den echten
+Kalibrierzeichnungen überspringen sich, wenn `echt_quellen.zip` fehlt
+(siehe [Kalibrierzeichnungen](#kalibrierzeichnungen-herkunft)).
 
 ## Geometrieprüfung im Detail
 
@@ -99,7 +459,7 @@ Einzelkriterium unscharf ist:
 1. **Hüllmaße** – größte Zeichnungsmaße vs. optimale Bounding-Box des
    Modells, plus Raumdiagonalen-Prüfung (K.O.-Kriterium).
 2. **Masse** – Gewichtsangabe im Schriftfeld vs. STEP-Volumen × Dichte des
-   erkannten Werkstoffs (Dichten stehen in `rules/materials.yaml`).
+   erkannten Werkstoffs (Dichten stehen in `materials.yaml` (eingebettet; `--export-rules`)).
 3. **Bohrbild** – explizite Mehrfachangaben („4×⌀18") vs. tatsächlich im
    Modell vorhandene Bohrungen; Bohrungen und Außenzylinder werden über
    Flächenorientierung und Achslage unterschieden und je Achse gruppiert.
@@ -139,7 +499,7 @@ Einschalten in `profiles.yaml`.
 
 Toleranzrahmen werden von CAD-Systemen meist als **Vektorgrafik** gezeichnet:
 Im Textlayer stehen nur Toleranzwert und Bezugsbuchstaben, das Symbol fehlt.
-Das Tool erkennt die Rahmen deshalb geometrisch (`zeichnung.py`) und wertet
+Das Tool erkennt die Rahmen deshalb geometrisch (Abschnitt `zeichnung`) und wertet
 Wert und Bezüge aus. Die Art der Toleranz bleibt unbekannt – dafür meldet der
 Checker `DOC.GDT_GRAPHIC` als Hinweis auf eine nötige Sichtprüfung, statt
 stillschweigend nichts zu prüfen.
@@ -176,8 +536,8 @@ gewertet, sondern als Prüfhinweis – ein falsch gelesenes Maß darf keine
 Zeichnung sperren.
 
 ```bat
-python -m drawing_checker.app --ocr-check                 # Installation prüfen
-python -m drawing_checker.app --ocr-check zeichnung.pdf   # Leseprobe
+python drawing_checker.py --ocr-check                 # Installation prüfen
+python drawing_checker.py --ocr-check zeichnung.pdf   # Leseprobe
 ```
 
 Windows: Tesseract von der UB-Mannheim-Distribution installieren (Sprachen
@@ -203,7 +563,7 @@ geschätzt):
   Zeichnungen weniger Fehlfunde; bei deutschen Zeichnungen ist das genau
   umgekehrt. Wer einen reinsprachigen Bestand hat, setzt `_LANG`.
 
-Die Güte ist messbar: `python -m tools.messen ocr` (nimmt ohne Angabe die
+Die Güte ist messbar: `python drawing_checker.py messen ocr` (nimmt ohne Angabe die
 echten Kalibrierzeichnungen)
 rastert echte Zeichnungen (deren Textlayer die Wahrheit liefert) und misst,
 wie viel die OCR davon zurückgewinnt. Stand der Abstimmung, gemessen an
@@ -237,54 +597,41 @@ weil das STEP das fertige Teil beschreibt.
 
 ## Weitergabe an den Anwenderrechner
 
-Der Zielrechner bekommt **eine einzige Datei**. Es gibt sie in zwei
-Fassungen – beides ist *eine* Datei, die Wahl hängt nur am Virenscanner:
+Der Zielrechner braucht `drawing_checker.py`, `Start.bat` und diese README
+im selben Ordner – drei Dateien, mehr nicht. Wer es auf **eine** Datei
+bringen will:
 
 ```bash
-python -m tools.paket --nur bat        # dist/DrawingChecker_Setup.bat  (Doppelklick)
-python -m tools.paket --nur zip        # dist/DrawingChecker.zip        (entpacken)
+python drawing_checker.py paket             # dist/DrawingChecker_Setup.bat + dist/DrawingChecker.zip
+python drawing_checker.py paket --nur bat   # nur die selbstentpackende .bat
 ```
 
-* **`dist/DrawingChecker_Setup.bat`** (rund 0,3 MB) trägt das Paket als Base64 in sich. Doppelklick: Sie entpackt sich
-  in den Ordner `DrawingChecker` neben sich und startet die Einrichtung.
-  Nichts wird in Windows installiert, nichts in der Registry geändert.
-  Manche Virenscanner sehen selbstentpackende Batch-Dateien kritisch –
-  dann die ZIP-Fassung nehmen.
-* **`dist/DrawingChecker.zip`** (rund 0,2 MB) ist
-  der unauffällige Weg: entpacken – es entsteht der Ordner
-  `DrawingChecker` – und darin `Start.bat` doppelklicken.
+* **`dist/DrawingChecker_Setup.bat`** trägt die drei Dateien als Base64 in
+  sich. Doppelklick: entpackt sich in den Ordner `DrawingChecker` neben
+  sich und startet die Einrichtung. Nichts wird in Windows installiert,
+  nichts in der Registry geändert. Manche Virenscanner sehen
+  selbstentpackende Batch-Dateien kritisch – dann die ZIP-Fassung nehmen.
+* **`dist/DrawingChecker.zip`** ist der unauffällige Weg: entpacken – es
+  entsteht der Ordner `DrawingChecker` – und darin `Start.bat` doppelklicken.
 
-Beide enthalten Programm, Wissenspakete, Startskript und Anleitungen (ohne
-die Kalibrierzeichnungen) und prüfen sich beim Bauen selbst: entpacken,
-`--check-rules` im entpackten Stand, Pflichtdateien vollständig. Alles
-Weitere (virtuelle Umgebung, Pakete, Menü) macht `Start.bat`.
+Beide prüfen sich beim Bauen selbst (entpacken, `--check-rules` im
+entpackten Stand). `dist/` ist nicht im Repository – vor der Weitergabe
+bauen, dann wird nie ein alter Stand verteilt.
 
-Der Ordner `dist/` ist **nicht** im Repository – die Auslieferung wird vor
-der Weitergabe gebaut (`python -m tools.paket`, unter einer Minute), damit
-nie ein alter Stand verteilt wird.
 
-## Anleitungen
-
-- **[LIESMICH.txt](LIESMICH.txt)** – Kurzanleitung für Anwender (zwei Seiten).
-- **[SAP-Durchstich](#sap-durchstich--ablauf-für-den-einsatztag)** – Mitschnitt einlesen und
-  Durchstich am Einsatztag.
-- **[Übergabe](#übergabe--stand-und-nächste-schritte)** – Stand, Umgebung und nächste Schritte
-  für die Weiterarbeit an einem anderen Rechner.
-- **[Regelkatalog](#regelkatalog-alle-regeln-im-klartext)** – Fachwissen ohne Code einpflegen.
-- **[Regelkatalog](#regelkatalog-alle-regeln-im-klartext)** – alle 98 Regeln im Klartext.
 
 ## Kalibrierung an echten Zeichnungen
 
-`mockdata/echt_quellen.zip` enthält **84 echte, frei lizenzierte
+`echt_quellen.zip` (nicht im Repository) enthält **84 echte, frei lizenzierte
 Fertigungszeichnungen** (28 mit STEP) aus OreSat (CERN-OHL-S v2) und
 ShapeOko (CC BY-SA 3.0) – Frästeile, Blech, Guss, Baugruppen, in mm und in
 Zoll, ISO- und ASME-Bemaßung. Sie liegen als **ein** Archiv im Repository
 (als über hundert Einzeldateien haben sie jede Dateiliste zugemüllt);
-`python -m mockdata quellen` packt sie nach `mockdata/.echt_quellen/` aus,
-die Werkzeuge tun das bei Bedarf von selbst. `python -m mockdata fehler`
+`python drawing_checker.py mockdata quellen` packt sie nach `.echt_quellen/` aus,
+die Werkzeuge tun das bei Bedarf von selbst. `python drawing_checker.py mockdata fehler`
 erzeugt daraus je
 Zeichnung ein unverändertes Referenzpaket und eines mit gezielt
-eingebautem Fehler; `tools.messen kalibrier` stellt beides
+eingebautem Fehler; `python drawing_checker.py messen kalibrier` stellt beides
 gegenüber.
 
 Der Nutzen ist messbar: Der Lauf über diesen Satz hat drei echte Schwächen
@@ -318,13 +665,13 @@ Der Lauf über eine ganze Materialgruppe dauert Stunden. Deshalb:
 
 ## Dauerlauf
 
-`tools.messen langlauf` prüft, ob das Werkzeug stundenlang durchhält: es baut
+`python drawing_checker.py messen langlauf` prüft, ob das Werkzeug stundenlang durchhält: es baut
 beliebig viele Materialnummern aus Mockpaketen, lässt den normalen
 Orchestrator darüberlaufen und misst Speicher, Plattenbedarf und Zeit je
 Nummer.
 
 ```bash
-python -m tools.messen langlauf --count 200
+python drawing_checker.py messen langlauf --count 200
 ```
 
 Damit wurden zwei echte Speicherlecks gefunden (der STEP-Leser von
@@ -336,7 +683,7 @@ fortsetzbar.
 
 ## Regelkatalog anpassen
 
-`drawing_checker/rules/profiles.yaml` – Regeln je Materialgruppe
+`profiles.yaml` (Abschnitt `wissenspakete`, `--export-rules`) – Regeln je Materialgruppe
 (default/guss/schweiss) an-/abschalten, Severities und Toleranzbänder für
 den Geometrieabgleich ändern. Profile erben per `inherit` voneinander.
 
@@ -348,10 +695,10 @@ der .vbs-Mitschnitt aus SAP wird eingelesen, in einen abspielbaren Ablauf
 versehen. Vier Schritte:
 
 ```bat
-python -m drawing_checker.app --sap-import-vbs ymatdocs.vbs   # 1. einlesen
-python -m drawing_checker.app --sap-dry-run 10473215          # 2. ohne SAP prüfen
-python -m drawing_checker.app --sap-test   10473215           # 3. echt, ein Material
-python -m drawing_checker.app                                 # 4. Dauerlauf (GUI)
+python drawing_checker.py --sap-import-vbs ymatdocs.vbs   # 1. einlesen
+python drawing_checker.py --sap-dry-run 10473215          # 2. ohne SAP prüfen
+python drawing_checker.py --sap-test   10473215           # 3. echt, ein Material
+python drawing_checker.py                                 # 4. Dauerlauf (GUI)
 ```
 
 **Der Mitschnitt ist die einzige Einrichtung.** Aus ihm kommen
@@ -379,14 +726,12 @@ Noch offen, unabhängig vom Mitschnitt:
    liegt.
 3. Nach dem Durchstich: Kalibrierung der Checks an echten Zeichnungen
    (Regel-Severities in `profiles.yaml`).
-4. Auslieferung: `pyinstaller packaging/DrawingChecker.spec` (Windows;
-   Wissenspakete werden mitgepackt, Anwender-Ergänzungen kommen in einen
-   Ordner `regeln/` neben die .exe).
+4. Auslieferung: `python drawing_checker.py paket` (siehe Weitergabe).
 
 Weiteres Wissen einpflegen (Normen, Werkstoffe, Regeln) ohne Code: siehe
 [Regelkatalog](#regelkatalog-alle-regeln-im-klartext). Echte Kalibrier-Zeichnungen: siehe
-[mockdata/echt_quellen/SOURCES.md](mockdata/echt_quellen/SOURCES.md)
-(die Zeichnungen selbst: `mockdata/echt_quellen.zip`).
+Abschnitt „Kalibrierzeichnungen: Herkunft“
+(die Zeichnungen selbst: `echt_quellen.zip` (nicht im Repository)).
 
 
 ---
@@ -429,14 +774,14 @@ Codeänderung.
 > Tipp: Zusätzlich eine zweite Aufzeichnung mit einer Materialnummer
 > **ohne** Dokumente machen. Daraus lässt sich der genaue Meldungstext
 > ablesen, den das Tool als „nicht vorhanden" erkennen soll
-> (`_looks_like_not_found` in `sap_ymatdocs.py`).
+> (`_looks_like_not_found` in Abschnitt `sap_ymatdocs`).
 
 ---
 
 ### 1. Mitschnitt einlesen
 
 ```bat
-python -m drawing_checker.app --sap-import-vbs "C:\...\ymatdocs.vbs"
+python drawing_checker.py --sap-import-vbs "C:\...\ymatdocs.vbs"
 ```
 
 Ausgabe: der erkannte Ablauf in Klartext. Zu prüfen ist:
@@ -463,7 +808,7 @@ Häufige Handkorrekturen:
 ### 2. Trockenlauf (ohne SAP)
 
 ```bat
-python -m drawing_checker.app --sap-dry-run 10473215
+python drawing_checker.py --sap-dry-run 10473215
 ```
 
 Spielt den Ablauf gegen eine simulierte Session ab und beantwortet:
@@ -474,7 +819,7 @@ am erwarteten Ort? Rückgabewert 0 = in Ordnung.
 ### 3. Einzeltest gegen echtes SAP
 
 ```bat
-python -m drawing_checker.app --sap-test 10473215
+python drawing_checker.py --sap-test 10473215
 ```
 
 Verbindet sich mit P11 (bestehende Anmeldung wird genutzt), führt den
@@ -487,13 +832,13 @@ Statuszeile, Fenstertitel. Daraus lassen sich die richtigen Element-IDs
 ablesen. Zusätzlich jederzeit:
 
 ```bat
-python -m drawing_checker.app --sap-dump
+python drawing_checker.py --sap-dump
 ```
 
 ### 4. Dauerlauf
 
 ```bat
-python -m drawing_checker.app            # GUI, Standardweg für Anwender
+python drawing_checker.py            # GUI, Standardweg für Anwender
 ```
 
 Ablauf-Datei wird automatisch gefunden (`regeln\ymatdocs_flow.yaml`);
@@ -525,7 +870,7 @@ Abbruch und Neustart setzen an der letzten offenen Materialnummer an.
 - **Ablauf hängt am Datei-Dialog** → prüfen, ob der Dialog wirklich
   `wnd[1]` ist (bei manchen Downloads `wnd[2]`); IDs im YAML anpassen.
 - **Kein Download erkannt, obwohl die Datei da ist** → Ordner in
-  `sap_sitzung.py::default_watch_dirs` ergänzen oder im Datei-Dialog den
+  `default_watch_dirs` (Abschnitt `sap_sitzung`) ergänzen oder im Datei-Dialog den
   Zielordner erzwingen (`{target_dir}`).
 - **Scripting-Hinweisdialog erscheint bei jedem Aufruf** → SAP-GUI-Option
   aus Schritt 0.2 abschalten.
@@ -535,15 +880,15 @@ Abbruch und Neustart setzen an der letzten offenen Materialnummer an.
 
 | Datei | Aufgabe |
 |---|---|
-| `sap_ablauf.py` (Parser) | .vbs → Ablauf, erkennt Transaktion, Materialfeld, Dialogfelder, Download-Auslöser |
-| `sap_ablauf.py` (Player) | Ablaufmodell + Player; `call`/`set_prop` bilden **jede** Scripting-Anweisung ab (auch ALV-Grid) |
-| `sap_ymatdocs.py` | Ablauf je Materialnummer, Statusauswertung, Notnagel-Ablauf |
-| `sap_sitzung.py` (Sitzung) | COM-Anbindung an P11, Wiederverwendung bestehender Sitzungen |
-| `sap_sitzung.py` (Wächter) | Neustart von SAP Logon nach Absturz |
-| `sap_sitzung.py` (Popups) | Dialogbehandlung |
-| `sap_sitzung.py` (Download) | Erkennung der fertigen ZIP-Datei |
-| `sap_sitzung.py` (Diagnose) | Elementbaum, Screenshot, Fehlerbericht |
-| `sap_ymatdocs.py` (Testsitzung) | simulierte Session für Trockenlauf und Tests |
+| Abschnitt `sap_ablauf` (Parser) | .vbs → Ablauf, erkennt Transaktion, Materialfeld, Dialogfelder, Download-Auslöser |
+| Abschnitt `sap_ablauf` (Player) | Ablaufmodell + Player; `call`/`set_prop` bilden **jede** Scripting-Anweisung ab (auch ALV-Grid) |
+| Abschnitt `sap_ymatdocs` | Ablauf je Materialnummer, Statusauswertung, Notnagel-Ablauf |
+| Abschnitt `sap_sitzung` (Sitzung) | COM-Anbindung an P11, Wiederverwendung bestehender Sitzungen |
+| Abschnitt `sap_sitzung` (Wächter) | Neustart von SAP Logon nach Absturz |
+| Abschnitt `sap_sitzung` (Popups) | Dialogbehandlung |
+| Abschnitt `sap_sitzung` (Download) | Erkennung der fertigen ZIP-Datei |
+| Abschnitt `sap_sitzung` (Diagnose) | Elementbaum, Screenshot, Fehlerbericht |
+| Abschnitt `sap_ymatdocs` (Testsitzung) | simulierte Session für Trockenlauf und Tests |
 
 
 ---
@@ -551,10 +896,10 @@ Abbruch und Neustart setzen an der letzten offenen Materialnummer an.
 # Regelkatalog: alle Regeln im Klartext
 
 Alle 98 Prüfregeln des Drawing Checkers – Grundlage für die Abstimmung mit
-dem Fachbereich. Jede Regel ist über `drawing_checker/rules/profiles.yaml`
+dem Fachbereich. Jede Regel ist über `profiles.yaml` (Abschnitt `wissenspakete`)
 (bzw. ein eigenes Paket in `regeln/`) einzeln abschaltbar, und ihre Severity
 ist frei einstellbar. Die aktuell aktiven Regeln zeigt
-`drawing-checker --list-rules`.
+`python drawing_checker.py --list-rules`.
 
 **Severity-Konvention:** `K.O.` = Paket unbrauchbar/Geometrie passt nicht ·
 `Fehler` = klare Beanstandung · `Prüfen` = nicht sicher entscheidbar,
@@ -671,7 +1016,7 @@ nachgeordnet.
 | `PUR.STOCK_SIZE` | Hinweis | Blechdicke/Rundmaterial außerhalb der Vorzugsmaße – Sondermaß mit Preis- und Lieferzeitfolge |
 
 Formulierungen, Hausnorm-Kürzel und Vorzugsmaße stehen in
-`rules/beschaffung.yaml` und sind ohne Codeänderung erweiterbar.
+`beschaffung.yaml` (eingebettet; `--export-rules`) und sind ohne Codeänderung erweiterbar.
 
 ### Sprache (LANG)
 
@@ -770,7 +1115,9 @@ per `inherit` an – siehe [Regelkatalog](#regelkatalog-alle-regeln-im-klartext)
 ## Know-how einpflegen – ohne KI, ohne Programmierung
 
 Das Prüfwissen des Tools liegt vollständig in **YAML-Wissenspaketen** unter
-`drawing_checker/rules/`. Wer Fachwissen hat, erweitert Dateien – keinen Code.
+Abschnitt `wissenspakete` von `drawing_checker.py` – oder, nach
+`--export-rules`, als Dateien in `regeln/`. Wer Fachwissen hat, erweitert
+YAML – keinen Code.
 Jede Datei `materials*.yaml` und `norms*.yaml` in dem Ordner wird automatisch
 mitgeladen; Firmenpakete (z. B. `norms_firma.yaml`, `materials_firma.yaml`)
 liegen neben den mitgelieferten und überstehen Updates des Tools.
@@ -787,7 +1134,7 @@ liegen neben den mitgelieferten und überstehen Updates des Tools.
    `regeln/norms_firma.yaml` oder `regeln/profiles_firma.yaml` – Format wie in
    den mitgelieferten Dateien (dort sind alle Felder kommentiert; ein Eintrag
    ist eine Zeile, Editor genügt, kein Python nötig).
-3. **Prüfen:** `drawing-checker --check-rules` validiert alle Pakete und
+3. **Prüfen:** `python drawing_checker.py --check-rules` validiert alle Pakete und
    meldet Probleme in Klartext mit Datei und Eintrag (leeres/falsches Feld,
    Regex-Tippfehler, unbekannte Kategorie/Severity, doppelte Namen). Die GUI
    macht dieselbe Prüfung beim Start und zeigt Funde als Warnung.
@@ -798,16 +1145,16 @@ liegen neben den mitgelieferten und überstehen Updates des Tools.
 
 | Datei | Inhalt | Wer pflegt |
 |---|---|---|
-| `rules/profiles.yaml` | Regeln je Materialgruppe: an/aus, Severity, Schlüsselwörter, Toleranzbänder für den Geometrieabgleich | Fachbereich |
-| `rules/materials.yaml` | Werkstoffe: Erkennungsmuster + Eigenschaften (schweißgeeignet, härtbar, verzinkbar, eloxierbar, Guss) → speist die Widerspruchsprüfung | Fachbereich/Schweißaufsicht |
-| `rules/norms.yaml` | Zurückgezogene/ersetzte Normen mit Hinweis auf den Nachfolger | Normenstelle |
-| `rules/beschaffung.yaml` | Unbestimmte Formulierungen, nicht beziehbare Haus-/Konzernnormen, Vorzugsmaße für Halbzeuge | Einkauf/Arbeitsvorbereitung |
+| `profiles.yaml` (eingebettet; `--export-rules`) | Regeln je Materialgruppe: an/aus, Severity, Schlüsselwörter, Toleranzbänder für den Geometrieabgleich | Fachbereich |
+| `materials.yaml` (eingebettet; `--export-rules`) | Werkstoffe: Erkennungsmuster + Eigenschaften (schweißgeeignet, härtbar, verzinkbar, eloxierbar, Guss) → speist die Widerspruchsprüfung | Fachbereich/Schweißaufsicht |
+| `norms.yaml` (eingebettet; `--export-rules`) | Zurückgezogene/ersetzte Normen mit Hinweis auf den Nachfolger | Normenstelle |
+| `beschaffung.yaml` (eingebettet; `--export-rules`) | Unbestimmte Formulierungen, nicht beziehbare Haus-/Konzernnormen, Vorzugsmaße für Halbzeuge | Einkauf/Arbeitsvorbereitung |
 
 ### Massenimport statt Handarbeit
 
 1. **Normenverwaltung anzapfen (größter Hebel):** Nautos/Perinorm können
    Trefferlisten mit Status und Nachfolgedokument als CSV exportieren.
-   `python -m tools.messen normen export.csv drawing_checker/rules/norms_firma.yaml`
+   `python drawing_checker.py messen normen export.csv regeln/norms_firma.yaml`
    erzeugt daraus hunderte Prüfeinträge in einem Schritt.
 2. **Firmennormen/Prüfkataloge:** Bestehende Prüf-Checklisten des Fachbereichs
    Zeile für Zeile in `profiles.yaml`-Regeln bzw. Schlüsselwortlisten gießen.
@@ -822,10 +1169,10 @@ liegen neben den mitgelieferten und überstehen Updates des Tools.
 
 ### Qualitätssicherung beim Einpflegen (Golden Set)
 
-- `mockdata/echt_quellen.zip` enthält 84 echte Zeichnungen (auspacken mit
-  `python -m mockdata quellen`); `python -m mockdata fehler`
+- `echt_quellen.zip` (nicht im Repository) enthält 84 echte Zeichnungen (auspacken mit
+  `python drawing_checker.py mockdata quellen`); `python drawing_checker.py mockdata fehler`
   erzeugt daraus Pakete mit dokumentierten Soll-Fehlern (`MANIFEST.txt`).
-- Nach jeder Wissensänderung: `python -m pytest tests/ -q` und einen
+- Nach jeder Wissensänderung: `python -m pytest drawing_checker.py -q` und einen
   Kalibrierlauf über das Golden Set – neue Regeln dürfen die Referenzpakete
   (unveränderte Originale) nicht plötzlich rot färben.
 - Regex-Tippfehler in den YAMLs fallen beim Start auf (Validierung beim Laden)
@@ -862,6 +1209,92 @@ liegen neben den mitgelieferten und überstehen Updates des Tools.
   Excel und Bild auf und macht Beanstandungen diskutierbar/abschaltbar.
 
 
+
+---
+
+# Kalibrierzeichnungen: Herkunft
+
+Die 84 echten Zeichnungen (25 MB) liegen **nicht** im Repository. Sie
+stehen in der Git-Historie und lassen sich in einer Zeile zurückholen –
+die Datei gehört neben `drawing_checker.py` und ist per `.gitignore`
+ausgeschlossen:
+
+```bash
+git show c80d62e:mockdata/echt_quellen.zip > echt_quellen.zip
+python drawing_checker.py mockdata quellen        # packt nach .echt_quellen/ aus
+```
+
+Ohne das Archiv überspringen sich die betroffenen Tests (Markierung
+`needs_echt`); alles andere läuft.
+
+
+Reale, frei lizenzierte Fertigungszeichnungen (mit passenden STEP-Modellen,
+wo verfügbar) zur Kalibrierung des Checkers. Nur für interne Test- und
+Entwicklungszwecke; Lizenzhinweise beachten.
+
+**Stand: 84 Zeichnungen, davon 28 mit STEP-Modell.**
+
+
+Der Satz ist bewusst breit: Frästeile, Blechteile, Wellen/Shims, Guss- und
+Baugruppenzeichnungen, in Millimeter und in Zoll, ISO- und ASME-Bemaßung,
+sauber und schlampig bemaßt. Genau daran zeigt sich, ob eine Regel trägt
+oder nur auf der eigenen Mustervorlage funktioniert.
+
+## OreSat / PSAS (Portland State Aerospace Society) — 56 Zeichnungen
+
+Quelle: https://github.com/oresat/oresat-structure — Lizenz: **CERN-OHL-S v2**.
+Professionelle SolidWorks-Fertigungszeichnungen (ASME Y14.5, überwiegend in
+Millimeter) mit STEP-Modellen. Enthalten sind unter anderem:
+
+- Rahmen der Satellitenstruktur (1U/1.5U/2U/3U, jeweils ±X und Y)
+- Kartenkeile in mehreren Varianten (CardWedge*)
+- Kamera- und Optikteile (CassegrainBase, lensmount, Shims, Baffle)
+- Thermik (copperThermalMass, thermalStrap, thermalClamp)
+- Reaktionsräder (MountingBeam, MotorBracket, RWWeight, MagnetHolder)
+- Vibrationsprüfvorrichtungen, Montagejigs, Endkarten
+
+Dateien tragen das Präfix `oresat_`; die sieben zuerst aufgenommenen
+Zeichnungen behielten ihre ursprünglichen Namen (CassegrainBase.pdf,
+lensmount.pdf, copperThermalMass.pdf, thermalStrap.pdf, supportBracket.pdf,
+OreSat_InhibitPin.pdf, OreSat_PushPlate.pdf).
+
+## ShapeOko / buildlog.net — 28 Zeichnungen
+
+Quelle: https://github.com/shapeoko/ShapeOko — Lizenz: **CC BY-SA 3.0**.
+Inventor-/SolidWorks-Zeichnungen einer offenen CNC-Fräse: Blechteile,
+Aluminiumprofile, Platten, Baugruppen. Teilweise in Zoll bemaßt und mit
+unvollständigen Schriftfeldern – wertvoll, weil genau solche Zeichnungen im
+Einkauf auftauchen.
+
+Dateien tragen das Präfix `shapeoko_`; drei Zeichnungen der ersten Runde
+heißen weiterhin DW660_Mount.pdf, MSK01-03.pdf und SM-S02.pdf.
+
+## Bewusst NICHT aufgenommen
+
+- **Katalogblätter von Händlern** (McMaster-Carr u. Ä.): keine
+  Fertigungszeichnungen, sondern Referenzblätter zugekaufter Normteile.
+  Sie verfälschen die Fehlalarm-Statistik.
+- **Zeichnungen unter NC-Lizenz** (z. B. Ultimaker-Teilezeichnungen,
+  CC BY-NC): technisch hervorragend, aber die Lizenz erlaubt keine
+  kommerzielle Nutzung – für ein Firmenwerkzeug ungeeignet.
+- **Leiterplatten-Fertigungsunterlagen**: anderer Zeichnungstyp, andere
+  Regeln.
+
+## Nutzung
+
+```bash
+python drawing_checker.py mockdata fehler .echt_quellen <zielordner>
+python drawing_checker.py --headless --mock <zielordner> \
+    --excel <zielordner>/Materialliste_Echt.xlsx --column C
+python drawing_checker.py messen kalibrier <zielordner>
+```
+
+Der erste Aufruf erzeugt je Zeichnung ein unverändertes **Referenzpaket**
+und ein Paket mit **injizierten Fehlern** (MANIFEST.txt dokumentiert, was
+wo eingebaut wurde). Die Auswertung stellt beides gegenüber: Was auf den
+unveränderten Zeichnungen als „Fehler" gemeldet wird, ist Fehlalarm-Verdacht;
+was nur auf den Fehlerpaketen anschlägt, ist echte Trefferleistung.
+
 ---
 
 # Übergabe – Stand und nächste Schritte
@@ -877,13 +1310,13 @@ Stand: 06.09.2026, Branch `claude/drawing-validation-tool-inzji1`.
 Vollständig gebaut und getestet (ohne SAP lauffähig über `--mock`):
 
 - **98 Prüfregeln** in neun Gruppen (siehe Abschnitt „Regelkatalog“), Wissen in
-  YAML unter `drawing_checker/rules/` – Werkstoffe, Normen, Beschaffung.
+  YAML im Abschnitt `wissenspakete` – Werkstoffe, Normen, Beschaffung.
 - **Geometrieabgleich** gegen STEP über fünf unabhängige Indizien:
   Hüllmaße, Masse (Volumen × Dichte), Bohrbild, Konturprojektion (HLR)
   und Spiegelung (falsche Hand).
 - **Masse-Plausibilität auch ohne STEP** (Hüllquader × Dichte).
 - **OCR für gescannte Zeichnungen**, auf Zeichnungen getrimmt und messbar
-  (`tools.messen ocr`).
+  (`python drawing_checker.py messen ocr`).
 - **SAP-Anbindung ablaufgesteuert**: der .vbs-Mitschnitt wird eingelesen
   und abgespielt, nichts ist hartcodiert (Abschnitt „SAP-Durchstich“ weiter unten).
 - **GUI** (PySide6) mit Fortschritt, Pause/Fortsetzen, Detailansicht;
@@ -898,10 +1331,10 @@ Echtbetrieb.** Die komplette Anleitung steht in **Abschnitt „SAP-Durchstich“
 dort anfangen. Kurzform:
 
 ```bat
-python -m drawing_checker.app --sap-import-vbs ymatdocs.vbs
-python -m drawing_checker.app --sap-dry-run 10473215
-python -m drawing_checker.app --sap-test   10473215
-python -m drawing_checker.app                      # GUI-Dauerlauf
+python drawing_checker.py --sap-import-vbs ymatdocs.vbs
+python drawing_checker.py --sap-dry-run 10473215
+python drawing_checker.py --sap-test   10473215
+python drawing_checker.py                      # GUI-Dauerlauf
 ```
 
 Bei Problemen: `--sap-dump` zeigt den Elementbaum des aktuellen SAP-Bildes;
@@ -923,9 +1356,9 @@ Meldungen nur darum herum.
 **Weitergabe:** Es gibt zwei Fassungen, beides *eine* Datei:
 
 ```bash
-python -m tools.paket --nur bat     # dist/DrawingChecker_Setup.bat - Doppelklick,
+python drawing_checker.py paket --nur bat     # dist/DrawingChecker_Setup.bat - Doppelklick,
                                 # entpackt sich selbst und startet Start.bat
-python -m tools.paket --nur zip     # dist/DrawingChecker.zip - entpacken, Start.bat
+python drawing_checker.py paket --nur zip     # dist/DrawingChecker.zip - entpacken, Start.bat
 ```
 
 Beide prüfen sich beim Bauen selbst (entpacken, `--check-rules` im entpackten
@@ -936,17 +1369,17 @@ Stand.
 **Windows-Anwenderrechner:** Doppelklick auf `Start.bat` – richtet alles
 ein und startet. `Start.bat neu` baut die Umgebung neu auf, `Start.bat
 pruefen` lässt die Testsuite laufen. Das Skript ist bewusst ohne Umlaute
-geschrieben (Codepage) und wird von `tests/test_startskript.py` gegen die
+geschrieben (Codepage) und wird von der Testabschnitt in `drawing_checker.py` gegen die
 klassischen Batch-Fallen geprüft (Blockklammern, Sprungziele, verzögerte
 Expansion) – dort weitermachen, wenn es erweitert wird.
 
 **Entwicklungsrechner:**
 
 ```bash
-pip install -e .[occ,ocr,dev]        # OCP für STEP, pytesseract für OCR
-python -m pytest tests/ -q           # muss vollständig grün sein
-python -m drawing_checker.app --check-rules
-python -m drawing_checker.app --ocr-check
+pip install pymupdf openpyxl pillow pandas PyYAML PySide6-Essentials cadquery-ocp pytesseract pytest
+python -m pytest drawing_checker.py -q           # muss vollständig grün sein
+python drawing_checker.py --check-rules
+python drawing_checker.py --ocr-check
 ```
 
 Zusätzlich nötig:
@@ -958,37 +1391,37 @@ Zusätzlich nötig:
 - **pywin32** und SAP GUI Scripting (nur Windows, nur für den Echtbetrieb).
 - Ohne Anzeige: `QT_QPA_PLATFORM=offscreen` setzen.
 
-Mockdaten werden von den Tests selbst erzeugt (`tests/conftest.py`);
-`python -m mockdata bauen` legt sie in `mockdata/out/` ab.
+Mockdaten werden von den Tests selbst erzeugt (Testabschnitt in `drawing_checker.py`);
+`python drawing_checker.py mockdata bauen` legt sie in `mockdata/out/` ab.
 
 ### 4. Wie hier gearbeitet wird (Konventionen, die zählen)
 
 - **Sprache Deutsch** in Code, Docstrings, Findings, Commit-Messages.
 - **Fachwissen gehört in YAML**, nicht in den Code. Neue Werkstoffe,
-  Normen, Formulierungen in `drawing_checker/rules/*.yaml` ergänzen und
+  Normen, Formulierungen in den YAML-Wissenspaketen ergänzen und
   `--check-rules` laufen lassen.
-- **Jede neue Regel**: Code in `rules/profiles.yaml` registrieren,
+- **Jede neue Regel**: Code in `profiles.yaml` (eingebettet; `--export-rules`) registrieren,
   Severity dort pflegen, mindestens ein Positiv- und ein Negativtest, und
   im Regelkatalog dieses Dokuments eintragen (ein Test erzwingt das).
 - **Unsicheres meldet „Prüfen", nie hart „Fehler".** Bei OCR-Grundlage
   wird jede Meldung automatisch heruntergestuft.
-- **Vor jedem Push**: `python -m pytest tests/ -q` und `--check-rules`.
+- **Vor jedem Push**: `python -m pytest drawing_checker.py -q` und `--check-rules`.
 
 ### 5. Womit Regeln kalibriert werden
 
-`mockdata/echt_quellen.zip` enthält **84 echte, frei lizenzierte
+`echt_quellen.zip` (nicht im Repository) enthält **84 echte, frei lizenzierte
 Fertigungszeichnungen** (28 mit STEP) aus OreSat (CERN-OHL-S v2) und
 ShapeOko (CC BY-SA 3.0) – Herkunft und Auswahlkriterien in
-`mockdata/echt_quellen/SOURCES.md`. Sie liegen bewusst als **ein** Archiv im
-Repository; `python -m mockdata quellen` packt sie nach
-`mockdata/.echt_quellen/` aus (nicht im Repository), die Werkzeuge unten tun
+Abschnitt „Kalibrierzeichnungen: Herkunft“. Sie liegen bewusst als **ein** Archiv im
+Repository; `python drawing_checker.py mockdata quellen` packt sie nach
+`.echt_quellen/` aus (nicht im Repository), die Werkzeuge unten tun
 das bei Bedarf von selbst. Bitte nicht wieder als Einzeldateien einchecken.
 
 ```bash
-python -m mockdata fehler mockdata/echt_quellen /tmp/kal
-python -m drawing_checker.app --headless --mock /tmp/kal \
+python drawing_checker.py mockdata fehler mockdata/echt_quellen /tmp/kal
+python drawing_checker.py --headless --mock /tmp/kal \
     --excel /tmp/kal/Materialliste_Echt.xlsx --column C
-python -m tools.messen kalibrier /tmp/kal
+python drawing_checker.py messen kalibrier /tmp/kal
 ```
 
 Die Auswertung trennt **Fehlalarm-Verdacht** (harte Meldungen auf den
@@ -1026,14 +1459,14 @@ NC-Lizenzen, keine Händler-Katalogblätter.
 
 | Werkzeug | Frage, die es beantwortet |
 |---|---|
-| `python -m tools.messen langlauf --count 200` | Läuft das Tool stundenlang stabil? Speicher, Platte, Zeit je Materialnummer |
-| `python -m tools.messen ocr` | Wie viel erkennt die OCR von einer gescannten Zeichnung wieder? |
-| `python -m tools.messen kalibrier <ordner>` | Wie viele Fehlalarme produzieren die Regeln? |
-| `python -m drawing_checker.app --list-rules` | Was ist je Profil aktiv? |
+| `python drawing_checker.py messen langlauf --count 200` | Läuft das Tool stundenlang stabil? Speicher, Platte, Zeit je Materialnummer |
+| `python drawing_checker.py messen ocr` | Wie viel erkennt die OCR von einer gescannten Zeichnung wieder? |
+| `python drawing_checker.py messen kalibrier <ordner>` | Wie viele Fehlalarme produzieren die Regeln? |
+| `python drawing_checker.py --list-rules` | Was ist je Profil aktiv? |
 
 Die Langlaufmessung hat zwei echte Speicherlecks gefunden (OpenCascade-
 Leser und der interne Zwischenspeicher von PyMuPDF). Beide sind behoben;
-wer an `ocr.py`, `step_compare.py` oder `annotate.py` arbeitet, sollte die
+wer an Abschnitt `ocr`, `step_compare.py` oder `annotate.py` arbeitet, sollte die
 Messung danach wiederholen.
 
 ### 7. Was als Nächstes ansteht (Priorität)
@@ -1042,7 +1475,7 @@ Messung danach wiederholen.
    nachrangig, solange das nicht läuft.
 2. **Kalibrierung an echten Firmenzeichnungen**: 20–30 echte
    YMATDOCS-Pakete durchlaufen lassen, Fehlbefunde ansehen, Severities und
-   Schwellen in `rules/profiles.yaml` nachziehen. Das bringt mehr als jede
+   Schwellen in `profiles.yaml` (eingebettet; `--export-rules`) nachziehen. Das bringt mehr als jede
    neue Regel.
 3. **Wandstärkenprüfung aus dem STEP** (Guss/Blech/Kunststoff) – braucht
    Ray-Casting über OCP, Grundlage liegt.
@@ -1063,7 +1496,7 @@ Messung danach wiederholen.
 - **OCP-Namen**: `TopoDS.Face` funktioniert in beiden Fassungen
   (`Face_s` gibt es nur in 7.9).
 - **OpenCascade und PyMuPDF geben Speicher nicht von selbst frei** – siehe
-  `kern.release_memory()`.
+  `release_memory()`.
 - **Mockzeichnungen taugen nicht zur Kalibrierung.** Alles, was auf
   selbstgebauten Musterzeichnungen funktioniert, kann an echten
   Zeichnungen krachend scheitern.
@@ -1142,39 +1575,9 @@ Rückschrieb in die Input-Excel je Materialnummer ausgegeben.
 
 #### Modulschnitt (Repo-Layout)
 
-> Die ursprüngliche Planung sah sechs Unterpakete mit je einer Handvoll
-> kleiner Module vor. Das ist beim Zusammenlegen des Repositorys
-> aufgegeben worden – die Dateiliste war länger als hilfreich. Der
-> heutige, flache Schnitt:
-
-```
-drawing_checker/
-├── app.py                # Einstieg: GUI, --headless, --check-rules, SAP-Werkzeuge
-├── kern.py               # Datenmodelle, Paketzugriff, Laufzustand, Haushalt
-├── ablauf.py             # Orchestrator: Liste abarbeiten, blockweise, abbrechbar
-├── zeichnung.py          # PDF laden, Metadaten, Maße, Form- und Lagetoleranzen
-├── ocr.py                # Tesseract-Weg für gescannte PDFs + Selbstprüfung
-├── regeln.py             # Regelmechanik, Profile, Validierung der Wissenspakete
-├── pruef_zeichnung.py    # Vollständigkeit, Schriftfeld, Sprache, Maßstab, Verfahren
-├── pruef_bemassung.py    # Maße, Toleranzen, GPS
-├── pruef_werkstoff.py    # Werkstoff, Verfahren, Gewicht, Beschaffung
-├── pruef_geometrie.py    # STEP-Abgleich, Silhouettenprojektion (OpenCascade)
-├── bericht.py            # Markiertes Bild, Excel-Rückschrieb, HTML-Bericht
-├── gui.py                # Hauptfenster (PySide6)
-├── sap_ablauf.py         # .vbs-Mitschnitt einlesen und abspielen
-├── sap_sitzung.py        # Sitzung, Fenstergrenze, Popups, Download, Wächter
-├── sap_ymatdocs.py       # Adapter-Schnittstelle, echter Weg, Mock, Testsitzung
-├── sap_cli.py            # Kommandozeilenwerkzeuge rund um SAP
-└── rules/                # Das Fachwissen als YAML - vier Dateien, vom Anwender
-    ├── profiles.yaml     #   pflegbar, deshalb bewusst NICHT zusammengelegt
-    ├── materials.yaml
-    ├── norms.yaml
-    └── beschaffung.yaml
-
-tests/     conftest.py + 5 Testdateien (Regeln, Geometrie, SAP, Ablauf, Auslieferung)
-tools/     paket.py (ZIP + Einzeldatei), messen.py (OCR, Langlauf, Kalibrierung, Normen)
-mockdata/  daten.py (Mockpakete, Kalibrierzeichnungen, Fehlerinjektion)
-```
+> Die ursprüngliche Planung sah sechs Unterpakete vor. Heute ist das
+> Programm eine Datei – die Gliederung steht oben unter
+> [Gliederung von drawing_checker.py](#gliederung-von-drawing_checkerpy).
 
 ---
 
@@ -1192,7 +1595,7 @@ mockdata/  daten.py (Mockpakete, Kalibrierzeichnungen, Fehlerinjektion)
 | Annotation | `Pillow` | Rechtecke/Nummern/Legende auf das gerenderte Zeichnungsbild |
 | STEP-Lesen | `cadquery-ocp` / `pythonocc-core` (OpenCascade) | STEP parsen, Maße/Bounding-Box/Volumen extrahieren |
 | ZIP-Handling | Stdlib `zipfile` | Paket aus YMATDOCS entpacken, Dateitypen klassifizieren (PDF/STEP/native) |
-| Packaging | `PyInstaller` (eine .exe) | Nicht-technische Nutzer, keine Python-Installation |
+| Packaging | eine .py + Start.bat (venv) | Nicht-technische Nutzer; PyInstaller verworfen (Virenscanner, 300 MB) |
 | Ziel-OS | Windows (zwingend) | SAP GUI Scripting existiert nur dort |
 
 ---
@@ -1220,7 +1623,7 @@ mockdata/  daten.py (Mockpakete, Kalibrierzeichnungen, Fehlerinjektion)
   statt fixer Sleeps. Zusätzlich abzudecken: der SAP-Datei-Dialog beim Download
   (Zielpfad je Materialnummer setzen, „Datei existiert"-Dialog, Warten bis das
   ZIP vollständig geschrieben ist – Größe stabil / kein Lock).
-- `kern.py` entpackt das ZIP in einen Arbeitsordner je Materialnummer und
+- Abschnitt `kern` entpackt das ZIP in einen Arbeitsordner je Materialnummer und
   klassifiziert den Inhalt:
   - **PDF** → Prüfgrundlage (immer erwartet; fehlt es → Finding „keine Zeichnung im Paket").
   - **STEP** (.stp/.step) → Geometrieabgleich wird ausgeführt; fehlt es → Hinweis
@@ -1248,7 +1651,7 @@ mockdata/  daten.py (Mockpakete, Kalibrierzeichnungen, Fehlerinjektion)
 - Der Lauf-Zustand (`state.py`) wird nach **jeder** Materialnummer auf Platte
   geschrieben → auch ein Absturz des Tools selbst ist per „Fortsetzen" heilbar.
 
-#### 4.4 Check-Engine (`regeln.py` + `pruef_*.py`)
+#### 4.4 Check-Engine (Abschnitt `regeln` + `pruef_*.py`)
 
 Einheitliches Interface: Jeder Check liefert `Finding(code, severity, text, bbox?)`.
 `bbox` in **PDF-Koordinaten** – die Annotation rechnet sie auf das gerenderte Bild um.
@@ -1297,7 +1700,7 @@ entscheidbar sind, melden „nicht nachweisbar" (gelb) statt hart „fehlt" (rot
 **b) STEP-Abgleich (`step_compare.py`) – STEP gegen die aus der Zeichnung
 ermittelte Geometrie** (Ziel: falsch gespeicherte Konfigurationen erkennen):
 
-1. `zeichnung.py` extrahiert Maßzahlen aus dem PDF-Textlayer
+1. Abschnitt `zeichnung` extrahiert Maßzahlen aus dem PDF-Textlayer
    (Regex auf Maß-/Toleranzsyntax: `⌀`, `R`, `M`, `±`, Passungen, Grenzmaße)
    inkl. Position.
 2. Aus den Maßen werden die **Hüllmaße der Zeichnung** geschätzt: die größten
@@ -1374,3 +1777,80 @@ M1 und M2 sind **ohne SAP** entwickel- und testbar (Beispiel-ZIPs genügen) und
 können sofort starten; M3 beginnt, sobald der .vbs-Mitschnitt vorliegt. Die
 Check-Qualität (M5) wird iterativ an echten Zeichnungen kalibriert – erst wenige
 Materialnummern mit manueller Kontrolle, dann Ausweitung.
+
+
+---
+
+# Hinweise für Claude-Sessions
+
+Internes Windows-Tool: prüft technische Zeichnungen je SAP-Materialnummer
+(YMATDOCS-ZIP mit PDF + optional STEP) auf Normverstöße, fachliche
+Widersprüche und Geometrie-Mismatch. GUI für nicht-technische Anwender.
+Sprache im Code/UI: Deutsch (Docstrings, Findings, Commit-Messages).
+
+**Das Repository besteht aus drei Dateien** – `drawing_checker.py`,
+`Start.bat`, `README.md` – und das bleibt so. Neue Funktionen kommen in
+den passenden Abschnitt von `drawing_checker.py`, neue Tests in den
+Testabschnitt am Dateiende, neues Wissen in den Abschnitt
+`wissenspakete`, Doku hierher. Keine neuen Dateien anlegen. Es gibt keine
+CLAUDE.md mehr – dieser Abschnitt ist ihr Ersatz; beim Sitzungsstart
+lesen.
+
+## Kommandos
+
+Siehe [Alle Aufrufe](#alle-aufrufe). Vor jedem Push:
+`python -m pytest drawing_checker.py -q` und
+`python drawing_checker.py --check-rules`.
+
+## Architektur
+
+Eine Datei, gegliedert in Abschnitte – siehe
+[Gliederung von drawing_checker.py](#gliederung-von-drawing_checkerpy).
+
+Wichtig dabei:
+
+- **SAP wird nicht programmiert, sondern aufgezeichnet.** Abschnitt `sap_ablauf`
+  liest den .vbs-Mitschnitt und spielt ihn ab (generische `call`/`set_prop`
+  decken auch ALV-Grid-Methoden ab); Abschnitt `sap_ymatdocs` klammert
+  Download-Überwachung und Statusauswertung darum. Ablaufdatei:
+  `regeln/ymatdocs_flow.yaml`. Die nachgebaute Sitzung in
+  Abschnitt `sap_ymatdocs` deckt Tests und `--sap-dry-run` ab.
+  Checkliste für den Durchstich: README.md, Abschnitt „SAP-Durchstich".
+- **Wissen gehört in die YAML-Wissenspakete** (Abschnitt `wissenspakete`:
+  profiles, materials, norms, beschaffung) – NIE fachliche Listen im Code hartkodieren. YAML erweitern
+  und `--check-rules` laufen lassen. Externe Overlays: Ordner `regeln/`
+  neben der .exe bzw. `DRAWING_CHECKER_RULES`.
+- **OCR** ist auf Zeichnungen getrimmt (400 dpi, Otsu, Deskew, PSM 11,
+  90°-Durchgang für gedrehte Maßtexte, Wörterbücher aus, Nachkorrektur);
+  jedes `Word` trägt eine Konfidenz, unsichere Zahlen werden kein Maß.
+  Seitenweise: OCR nur für Seiten ohne Textlayer. Einstellungen über
+  `DRAWING_CHECKER_OCR_*`, Güte messbar mit `python drawing_checker.py messen ocr`.
+- **Ringschlüsse vermeiden**: `sap_sitzung` trägt die Adapter-Schnittstelle,
+  `sap_ymatdocs` importiert nur in eine Richtung. Die `pruef_*`-Module
+  greifen untereinander nur über träge Importe in Funktionen zu.
+
+## Konventionen
+
+- Jede neue Regel: Code (Schema GRUPPE.NAME) in `profiles.yaml` (Abschnitt `wissenspakete`) registrieren,
+  Severity dort pflegen, mindestens 1 Positiv- + 1 Negativtest, Eintrag im
+  Regelkatalog dieser README (ein Test erzwingt das).
+- Unsicheres meldet `warning` („nicht nachweisbar/prüfen"), nie hart `error`.
+- Findings mit `bbox` (PDF-Koordinaten) werden im Bild markiert.
+- **Ein Modul, ein Namensraum.** Ein Test verbietet doppelt vergebene Namen
+  auf oberster Ebene – daran ist beim Zusammenlegen ein verdeckter Regex
+  aufgefallen. Neue Namen müssen eindeutig sein.
+- Gemeinsame Testhelfer (`make_ctx`, `codes`, `make_config`, `FONT`, `ECHT`,
+  `FIXTURE`) stehen einmal am Anfang des Testabschnitts (`conftest`).
+- Mockdaten sind Test-Fixtures (je Lauf gebaut); echte Kalibrierzeichnungen
+  liegen NICHT im Repository – siehe
+  [Kalibrierzeichnungen](#kalibrierzeichnungen-herkunft).
+- Vor jedem Push: `python -m pytest drawing_checker.py -q` und `--check-rules`.
+- Regeln werden an den 84 echten Fremdzeichnungen kalibriert, nicht an
+  Musterzeichnungen: `python drawing_checker.py mockdata fehler` + `--headless` +
+  `python drawing_checker.py messen kalibrier`. Harte Meldungen auf den unveränderten
+  Referenzen sind Fehlalarm-Verdacht.
+- Speicher: OpenCascade und PyMuPDF geben nichts von selbst frei – nach
+  großen Puffern `release_memory()` aufrufen und mit
+  `python drawing_checker.py messen langlauf` gegenmessen.
+- Übergabe an die nächste Sitzung: den Abschnitt „Übergabe" hier aktuell
+  halten.

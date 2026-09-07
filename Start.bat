@@ -6,6 +6,9 @@ rem  Doppelklick genuegt. Beim ersten Start wird alles Noetige
 rem  eingerichtet (dauert einige Minuten), danach erscheint ein Menue,
 rem  ueber das sich alles ohne Eingabe von Befehlen erledigen laesst.
 rem
+rem  Das ganze Programm ist EINE Datei: drawing_checker.py. Diese
+rem  Batch-Datei richtet nur die Python-Umgebung daneben ein.
+rem
 rem  Aufrufvarianten fuer Geuebte:
 rem     Start.bat              Menue
 rem     Start.bat pruefen      Installation und Regeln pruefen
@@ -26,6 +29,10 @@ set "PROJEKT=%~dp0"
 set "VENV=%PROJEKT%.venv"
 set "PYEXE=%VENV%\Scripts\python.exe"
 set "MARKER=%VENV%\eingerichtet.txt"
+set "PROGRAMM=%PROJEKT%drawing_checker.py"
+rem Bei Aenderung der Paketliste unten diese Nummer erhoehen - dann wird
+rem beim naechsten Start nachinstalliert.
+set "PAKETSTAND=3"
 set "LOGDIR=%PROJEKT%logs"
 if not exist "%LOGDIR%" mkdir "%LOGDIR%" >nul 2>&1
 set "LOG=%LOGDIR%\einrichtung.log"
@@ -99,13 +106,14 @@ if not exist "%PYEXE%" (
 )
 
 rem ---------------------------------------------------------------- 4
-rem Muss installiert werden? Nur wenn Marker fehlt oder pyproject neuer.
+rem Muss installiert werden? Nur wenn Marker fehlt oder Paketstand neuer.
+if not exist "%PROGRAMM%" goto :kein_programm
 if not defined INSTALL (
-    "%PYEXE%" -c "import pathlib,sys; m=pathlib.Path(r'%MARKER%'); p=pathlib.Path(r'%PROJEKT%pyproject.toml'); sys.exit(0 if m.exists() and m.read_text().strip()==str(p.stat().st_mtime_ns) else 1)" >nul 2>&1
+    "%PYEXE%" -c "import pathlib,sys; m=pathlib.Path(r'%MARKER%'); sys.exit(0 if m.exists() and m.read_text().strip()=='%PAKETSTAND%' else 1)" >nul 2>&1
     if errorlevel 1 set "INSTALL=1"
 )
 if not defined INSTALL (
-    "%PYEXE%" -c "import drawing_checker" >nul 2>&1
+    "%PYEXE%" -c "import pymupdf, openpyxl, yaml, PIL" >nul 2>&1
     if errorlevel 1 set "INSTALL=1"
 )
 
@@ -114,22 +122,22 @@ if defined INSTALL (
     echo  einige hundert Megabyte geladen - bitte Geduld.
     echo [%DATE% %TIME%] pip install>>"%LOG%"
     "%PYEXE%" -m pip install --upgrade pip setuptools wheel >>"%LOG%" 2>&1
-    echo  ... Grundprogramm
-    "%PYEXE%" -m pip install -e "." >>"%LOG%" 2>&1
+    echo  ... Grundpakete ^(PDF, Excel, Bilder, Oberflaeche^)
+    "%PYEXE%" -m pip install "pymupdf>=1.24" "openpyxl>=3.1" "pillow>=10" "pandas>=2" "PyYAML>=6" "PySide6-Essentials>=6.6" >>"%LOG%" 2>&1
     if errorlevel 1 goto :fehler_pip
 
     rem Zusatzpakete einzeln: faellt eines aus, laeuft der Rest weiter.
     echo  ... SAP-Anbindung
-    "%PYEXE%" -m pip install -e ".[sap]" >>"%LOG%" 2>&1
+    "%PYEXE%" -m pip install "pywin32>=306" >>"%LOG%" 2>&1
     if errorlevel 1 echo      HINWEIS: SAP-Anbindung ^(pywin32^) fehlt - nur Mockbetrieb moeglich.
     echo  ... Texterkennung fuer gescannte Zeichnungen
-    "%PYEXE%" -m pip install -e ".[ocr]" >>"%LOG%" 2>&1
+    "%PYEXE%" -m pip install "pytesseract>=0.3" >>"%LOG%" 2>&1
     if errorlevel 1 echo      HINWEIS: OCR-Paket fehlt - Scans werden nicht gelesen.
     echo  ... 3D-Auswertung der STEP-Dateien ^(grosses Paket, dauert^)
-    "%PYEXE%" -m pip install -e ".[occ]" >>"%LOG%" 2>&1
+    "%PYEXE%" -m pip install "cadquery-ocp>=7.7" >>"%LOG%" 2>&1
     if errorlevel 1 echo      HINWEIS: 3D-Paket fehlt - Geometriepruefung nur eingeschraenkt.
 
-    "%PYEXE%" -c "import pathlib; pathlib.Path(r'%MARKER%').write_text(str(pathlib.Path(r'%PROJEKT%pyproject.toml').stat().st_mtime_ns))" >nul 2>&1
+    "%PYEXE%" -c "import pathlib; pathlib.Path(r'%MARKER%').write_text('%PAKETSTAND%')" >nul 2>&1
     echo  Einrichtung abgeschlossen.
     echo.
 )
@@ -162,8 +170,9 @@ echo    3  Trockenlauf ohne SAP     ^(prueft den eingelesenen Ablauf^)
 echo    4  Eine Materialnummer testweise aus SAP holen
 echo    5  Aktuelles SAP-Bild anzeigen ^(Diagnose bei Problemen^)
 echo    6  Installation und Regeln pruefen
-echo    7  Anleitung oeffnen
-echo    8  Beenden
+echo    7  Anleitung oeffnen ^(README.md^)
+echo    8  Pruefregeln zum Bearbeiten herausschreiben ^(Ordner regeln^)
+echo    9  Beenden
 echo.
 set "WAHL="
 set /p "WAHL=Nummer eingeben und Enter druecken: "
@@ -174,8 +183,9 @@ if "%WAHL%"=="4" goto :m_test
 if "%WAHL%"=="5" goto :m_dump
 if "%WAHL%"=="6" goto :selbsttest
 if "%WAHL%"=="7" goto :m_anleitung
-if "%WAHL%"=="8" goto :ende
-echo  Bitte eine Zahl von 1 bis 8 eingeben.
+if "%WAHL%"=="8" goto :m_regeln
+if "%WAHL%"=="9" goto :ende
+echo  Bitte eine Zahl von 1 bis 9 eingeben.
 goto :menu
 
 :m_start
@@ -183,7 +193,7 @@ echo.
 echo  Das Programm wird gestartet. Bitte im Fenster die Excel-Datei
 echo  waehlen und auf die Spalte mit den Materialnummern zeigen.
 echo.
-"%PYEXE%" -m drawing_checker.app
+"%PYEXE%" "%PROGRAMM%"
 if errorlevel 1 call :fehlerhinweis
 goto :menu
 
@@ -197,7 +207,7 @@ set /p "VBS=Datei: "
 if not defined VBS goto :menu
 set "VBS=%VBS:"=%"
 if not exist "%VBS%" goto :m_vbs_fehlt
-"%PYEXE%" -m drawing_checker.app --sap-import-vbs "%VBS%"
+"%PYEXE%" "%PROGRAMM%" --sap-import-vbs "%VBS%"
 echo.
 echo  Bitte oben pruefen: Ist die Materialnummer erkannt und der
 echo  Download-Schritt richtig markiert? Danach Punkt 3 ^(Trockenlauf^).
@@ -214,7 +224,7 @@ echo.
 set "MATNR="
 set /p "MATNR=Materialnummer fuer den Trockenlauf (Enter = 4711): "
 if not defined MATNR set "MATNR=4711"
-"%PYEXE%" -m drawing_checker.app --sap-dry-run "%MATNR%"
+"%PYEXE%" "%PROGRAMM%" --sap-dry-run "%MATNR%"
 pause
 goto :menu
 
@@ -224,7 +234,7 @@ set "MATNR="
 set /p "MATNR=Echte Materialnummer aus SAP holen: "
 if not defined MATNR goto :menu
 echo  SAP muss offen und angemeldet sein.
-"%PYEXE%" -m drawing_checker.app --sap-test "%MATNR%"
+"%PYEXE%" "%PROGRAMM%" --sap-test "%MATNR%"
 pause
 goto :menu
 
@@ -232,19 +242,28 @@ goto :menu
 echo.
 echo  Zeigt den Aufbau des aktuellen SAP-Bildes. Vorher in SAP das
 echo  Bild aufrufen, um das es geht.
-"%PYEXE%" -m drawing_checker.app --sap-dump
+"%PYEXE%" "%PROGRAMM%" --sap-dump
 pause
 goto :menu
 
 :m_anleitung
-if exist "%PROJEKT%LIESMICH.txt" start "" notepad "%PROJEKT%LIESMICH.txt"
-if not exist "%PROJEKT%LIESMICH.txt" echo  LIESMICH.txt wurde nicht gefunden.
+if exist "%PROJEKT%README.md" start "" notepad "%PROJEKT%README.md"
+if not exist "%PROJEKT%README.md" echo  README.md wurde nicht gefunden.
+goto :menu
+
+:m_regeln
+echo.
+echo  Die eingebauten Wissenspakete ^(Werkstoffe, Normen, Profile,
+echo  Beschaffung^) werden als YAML-Dateien in den Ordner "regeln"
+echo  geschrieben. Was dort steht, ueberlagert die eingebauten Regeln.
+"%PYEXE%" "%PROGRAMM%" --export-rules
+pause
 goto :menu
 
 :durchreichen
 echo  Programm wird gestartet ...
 echo.
-"%PYEXE%" -m drawing_checker.app %ARGS%
+"%PYEXE%" "%PROGRAMM%" %ARGS%
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" goto :fehler_lauf
 goto :ende
@@ -254,13 +273,13 @@ rem ===================================================================
 echo.
 echo  Pruefe die Installation ...
 echo.
-"%PYEXE%" -m drawing_checker.app --check-rules
+"%PYEXE%" "%PROGRAMM%" --check-rules
 echo.
-"%PYEXE%" -m drawing_checker.app --ocr-check
+"%PYEXE%" "%PROGRAMM%" --ocr-check
 echo.
-"%PYEXE%" -m drawing_checker.app --sap-show-flow
+"%PYEXE%" "%PROGRAMM%" --sap-show-flow
 echo.
-if exist "%PROJEKT%tests" call :vollstaendiger_test
+call :vollstaendiger_test
 echo.
 echo  Pruefung beendet.
 pause
@@ -272,8 +291,8 @@ echo  Vollstaendiger Selbsttest dauert einige Minuten.
 set "T="
 set /p "T=Mit Enter starten, sonst eine Taste und Enter zum Ueberspringen: "
 if defined T exit /b 0
-"%PYEXE%" -m pip install -e ".[dev]" >>"%LOG%" 2>&1
-"%PYEXE%" -m pytest tests -q
+"%PYEXE%" -m pip install "pytest>=8" >>"%LOG%" 2>&1
+"%PYEXE%" -m pytest "%PROGRAMM%" -q
 exit /b 0
 
 :pruefe_python
@@ -308,6 +327,14 @@ echo    %PROJEKT%
 echo.
 echo  Bitte den Ordner an einen Ort mit Schreibrechten kopieren,
 echo  zum Beispiel C:\Tools\DrawingChecker, und dort erneut starten.
+pause
+endlocal
+exit /b 1
+
+:kein_programm
+echo  Die Programmdatei fehlt neben dieser Batch-Datei:
+echo    %PROGRAMM%
+echo  Bitte drawing_checker.py in denselben Ordner legen wie Start.bat.
 pause
 endlocal
 exit /b 1

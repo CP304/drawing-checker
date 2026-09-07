@@ -1,14 +1,22 @@
+# Das Repository besteht aus drei Dateien: drawing_checker.py, Start.bat,
+# README.md. Alles andere entsteht beim Einrichten oder Laufen und bleibt
+# draussen.
 __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
-build/
-dist/            # Auslieferung wird gebaut (python -m tools.paket), nicht eingecheckt
-mockdata/out/
-Ergebnisse/
-*_geprüft.xlsx
-*.log
-regeln/
 .venv/
 logs/
-mockdata/.echt_quellen/
+*.log
+# Auslieferung: python drawing_checker.py paket
+dist/
+# Wissenspakete zum Bearbeiten: --export-rules
+regeln/
+# Laufergebnisse
+Ergebnisse/
+*_geprüft.xlsx
+# Mockpakete: python drawing_checker.py mockdata bauen
+mockdata/
+# Kalibrierzeichnungen (25 MB) - siehe README, Abschnitt Kalibrierzeichnungen
+echt_quellen.zip
+.echt_quellen/
